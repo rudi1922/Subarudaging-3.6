@@ -1,0 +1,174 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #1a1a1a;
+  color: #e5e5e5;
+  font-family: 'Inter', sans-serif;
+  overscroll-behavior-y: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a1a; 
+}
+::-webkit-scrollbar-thumb {
+  background: #333; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8B0000; 
+}
+
+/* 3D Logo Style */
+.logo-3d {
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,0.5));
+  transform: perspective(500px) rotateX(15deg) rotateY(-10deg) scale(1);
+  transition: all 0.4s ease;
+  display: block;
+  backface-visibility: hidden;
+}
+.logo-3d:hover {
+  transform: perspective(500px) rotateX(0deg) rotateY(0deg) scale(1.1);
+  filter: drop-shadow(0 15px 15px rgba(212, 175, 55, 0.4));
+}
+
+/* --- TEXT SHIMMER ANIMATION --- */
+@keyframes shine {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.animate-shine {
+  background: linear-gradient(
+    120deg, 
+    #ffffff 20%, 
+    #D4AF37 40%, 
+    #ffffff 60%,
+    #D4AF37 80%
+  );
+  background-size: 200% auto;
+  color: #000;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine 4s linear infinite;
+  display: inline-block;
+}
+
+/* --- PRINT & EXPORT STYLES --- */
+
+/* Thermal Receipt Standard (80mm / 58mm) */
+.thermal-receipt {
+  font-family: 'Courier New', Courier, monospace; /* Monospace is best for alignment */
+  width: 100%;
+  margin: 0 auto;
+  color: black;
+  background: white;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.thermal-receipt.width-58mm {
+    max-width: 58mm;
+    font-size: 10px; /* Smaller font for 58mm */
+}
+
+.thermal-receipt.width-80mm {
+    max-width: 80mm;
+}
+
+.thermal-receipt h1, .thermal-receipt h2 {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.thermal-receipt .dashed-line {
+  border-bottom: 1px dashed #000;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.thermal-receipt .double-line {
+  border-bottom: 3px double #000;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.thermal-receipt table {
+  width: 100%;
+}
+
+.thermal-receipt td {
+  vertical-align: top;
+}
+
+/* A4 Report Standard */
+.a4-report {
+  font-family: 'Times New Roman', Times, serif;
+  width: 100%;
+  max-width: 210mm;
+  margin: 0 auto;
+  color: black;
+  background: white;
+  padding: 20px;
+}
+
+.a4-report header {
+  border-bottom: 2px solid #000;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Elements explicitly marked for printing */
+  .print-only-container, 
+  .print-only-container * {
+    visibility: visible;
+  }
+
+  .print-only-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white;
+    color: black;
+    z-index: 9999;
+  }
+  
+  /* Reset styles for print to ensure black ink mostly */
+  .text-red-500, .text-brand-red { color: black !important; }
+  .bg-brand-red { background-color: white !important; color: black !important; border: 1px solid black; }
+
+  /* Hide non-print elements */
+  nav, aside, header, .no-print, button, .modal-close {
+    display: none !important;
+  }
+}
