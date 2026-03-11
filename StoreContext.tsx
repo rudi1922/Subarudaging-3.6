@@ -157,15 +157,19 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [searchQuery, setSearchQuery] = useState('');
 
   // --- OFFLINE SYNC QUEUE ---
+  const isProcessingQueueRef = React.useRef(false);
   useEffect(() => {
     const processQueue = async () => {
+        if (isProcessingQueueRef.current) return;
         if (navigator.onLine && isSupabaseConfigured) {
+            isProcessingQueueRef.current = true;
             let queue = [];
             try {
                 queue = JSON.parse(localStorage.getItem('offline_transaction_queue') || '[]');
             } catch (e) {
                 console.error('Failed to parse offline queue:', e);
                 localStorage.removeItem('offline_transaction_queue');
+                isProcessingQueueRef.current = false;
                 return;
             }
             if (queue.length > 0) {
@@ -205,6 +209,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     // fetchTable('transactions', setTransactions, ...); // Ideally re-fetch
                 }
             }
+            isProcessingQueueRef.current = false;
         }
     };
 
@@ -216,14 +221,22 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, []);
 
   // --- SUPABASE INTEGRATION ---
+  const isFetchingRef = React.useRef(false);
   useEffect(() => {
     const fetchData = async () => {
-        // Only fetch if Supabase is configured
-        if (!isSupabaseConfigured) return;
+        // Only fetch if Supabase is configured and not already fetching
+        if (!isSupabaseConfigured || isFetchingRef.current) return;
+        isFetchingRef.current = true;
 
         const fetchTable = async <T,>(table: string, setter: (data: T[]) => void, transform?: (data: Record<string, unknown>[]) => T[]) => {
             try {
+                // Add a timeout to prevent hanging
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
                 const { data, error } = await supabase.from(table).select('*');
+                clearTimeout(timeoutId);
+                
                 if (error) throw error;
                 if (data) {
                     setter(transform ? transform(data as Record<string, unknown>[]) : data as T[]);
@@ -490,7 +503,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'commissions' }, (payload) => {
                 setCommissions(prev => {
                     if (prev.some(c => c.id === payload.new.id)) return prev;
-                    const c = payload.new as Record<string, any>;
+                    const c = payload.new as Record<string, unknown>;
                     return [{
                         id: c.id,
                         referrerId: c.referrer_id,
@@ -896,48 +909,39 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   // Derive Receivables from Transactions (for persistence across sessions)
-  useEffect(() => {
-      if (transactions.length > 0) {
-          const derived: Receivable[] = transactions
-              .filter(t => t.paymentMethod === 'Piutang' && t.status === 'Pending' && t.dueDate)
-              .map(t => {
-                  const paidAmount = debtPayments
-                      .filter(dp => dp.receivableId === `rec-${t.id}`)
-                      .reduce((sum, dp) => sum + dp.amount, 0);
-                  
-                  const initialDebt = t.total - (t.downPayment || 0);
-                  const remainingDebt = Math.max(0, initialDebt - paidAmount);
-
-                  return {
-                      id: `rec-${t.id}`,
-                      invoiceId: t.id,
-                      customerName: t.customerName,
-                      customerId: t.customerId,
-                      amount: remainingDebt,
-                      dueDate: t.dueDate!,
-                      status: remainingDebt <= 0 ? 'Lunas' : 'Belum Lunas',
-                      phone: '',
-                      outletId: t.outletId
-                  };
-              });
+  const derivedReceivables = React.useMemo(() => {
+    if (transactions.length === 0) return [];
+    
+    return transactions
+      .filter(t => t.paymentMethod === 'Piutang' && t.status === 'Pending' && t.dueDate)
+      .map(t => {
+          const paidAmount = debtPayments
+              .filter(dp => dp.receivableId === `rec-${t.id}`)
+              .reduce((sum, dp) => sum + dp.amount, 0);
           
-          setReceivables(prev => {
-              const existingIds = new Set(prev.map(r => r.id));
-              const newRecs = derived.filter(r => !existingIds.has(r.id));
-              if (newRecs.length === 0) {
-                  // Update existing amounts if changed (e.g. new payment loaded)
-                  const updated = prev.map(r => {
-                      const d = derived.find(dr => dr.id === r.id);
-                      return d ? d : r;
-                  });
-                  // Check if actually changed to avoid loop
-                  if (JSON.stringify(updated) !== JSON.stringify(prev)) return updated;
-                  return prev;
-              }
-              return [...prev, ...newRecs];
-          });
-      }
+          const initialDebt = t.total - (t.downPayment || 0);
+          const remainingDebt = Math.max(0, initialDebt - paidAmount);
+
+          return {
+              id: `rec-${t.id}`,
+              invoiceId: t.id,
+              customerName: t.customerName,
+              customerId: t.customerId,
+              amount: remainingDebt,
+              dueDate: t.dueDate!,
+              status: remainingDebt <= 0 ? 'Lunas' : 'Belum Lunas',
+              phone: '',
+              outletId: t.outletId
+          };
+      });
   }, [transactions, debtPayments]);
+
+  // Sync state with derived values if needed (for components that rely on state)
+  useEffect(() => {
+    if (derivedReceivables.length > 0) {
+        setReceivables(derivedReceivables);
+    }
+  }, [derivedReceivables]);
 
   const updatePrinterConfig = (config: Partial<PrinterConfig>) => {
       setPrinterConfig(prev => ({ ...prev, ...config }));

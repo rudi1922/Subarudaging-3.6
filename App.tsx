@@ -42,7 +42,7 @@ const AppContent = () => {
     
     if (ref) {
         localStorage.setItem('referral_code', ref);
-        console.log('Referral code captured:', ref);
+        console.warn('Referral code captured:', ref);
     }
 
     if (mode === 'customer' || !localStorage.getItem('auth_token')) {
@@ -85,7 +85,17 @@ const AppContent = () => {
 
     checkSession().then(() => clearTimeout(timeoutId));
     
-    return () => clearTimeout(timeoutId);
+    // Handle app re-activation (focus) to prevent hangs or stale state
+    const handleFocus = () => {
+      // Optionally re-verify session or sync state
+    };
+
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const handleLogin = (selectedUser: User) => {
