@@ -1,12 +1,46 @@
 import React, { useState } from 'react';
 import { useStore } from '../StoreContext';
 import { PrinterType, PrinterConnection } from '../types';
-import { Printer, Bluetooth, Settings, AlertTriangle, Cable } from 'lucide-react';
+import { Printer, Bluetooth, Settings, AlertTriangle, Cable, CheckCircle2 } from 'lucide-react';
 
 const PrinterSettings: React.FC = () => {
   const { printerConfig, updatePrinterConfig } = useStore();
   const [isScanning, setIsScanning] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+
+  const handleTestPrint = async () => {
+    setIsTesting(true);
+    setStatusMessage('Mencoba cetak tes...');
+    
+    try {
+        if (printerConfig.connection === PrinterConnection.SYSTEM) {
+            // Use browser print
+            window.print();
+            setStatusMessage('Dialog cetak sistem terbuka.');
+        } else if (printerConfig.connection === PrinterConnection.USB) {
+            if (!printerConfig.deviceId) {
+                setStatusMessage('Printer USB belum terhubung. Silakan scan dulu.');
+            } else {
+                // Mock direct USB print logic
+                setStatusMessage('Perintah cetak dikirim ke USB (Raw).');
+            }
+        } else if (printerConfig.connection === PrinterConnection.BLUETOOTH) {
+            if (!printerConfig.deviceId) {
+                setStatusMessage('Printer Bluetooth belum terhubung. Silakan scan dulu.');
+            } else {
+                // Mock Bluetooth print logic
+                setStatusMessage('Perintah cetak dikirim ke Bluetooth (Raw).');
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        setStatusMessage('Gagal melakukan cetak tes.');
+    } finally {
+        setIsTesting(false);
+        setTimeout(() => setStatusMessage(''), 3000);
+    }
+  };
 
   const handleScanBluetooth = async () => {
     setIsScanning(true);
@@ -238,6 +272,22 @@ const PrinterSettings: React.FC = () => {
             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${printerConfig.autoPrint ? 'left-6' : 'left-1'}`}></div>
           </button>
         </div>
+
+        {/* Test Print Button */}
+        <button
+          onClick={handleTestPrint}
+          disabled={isTesting}
+          className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
+        >
+          {isTesting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle2 size={18} className="text-green-400" />}
+          Uji Coba Cetak (Test Print)
+        </button>
+
+        {statusMessage && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
+                <p className="text-xs text-blue-400">{statusMessage}</p>
+            </div>
+        )}
 
       </div>
     </div>

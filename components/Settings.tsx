@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye } from 'lucide-react';
 import { Role, Outlet, PrinterConnection, PrintingData, User, GalleryItem, LoyaltyProgram } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
@@ -67,10 +67,10 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ user }) => {
-  const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType } = useStore();
+  const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType, systemLogs, employeeFinancials, cattleOrders } = useStore();
   
   const canEditSettings = user?.username === 'rudiaf';
-  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master'>(canEditSettings ? 'general' : 'print');
+  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs'>(canEditSettings ? 'general' : 'print');
   
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
@@ -119,8 +119,15 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
     { role: Role.CASHIER, viewFinance: false, editStock: false, manageUsers: false },
   ]);
 
+  // History Log State
+  const [logSearchTerm, setLogSearchTerm] = useState('');
+  const [logFilterType, setLogFilterType] = useState<string>('Semua');
+  const [logStartDate] = useState('');
+  const [logEndDate] = useState('');
+  const [selectedLogEntry, setSelectedLogEntry] = useState<any | null>(null);
+
   // Sync permissions when appSettings loads
-  React.useEffect(() => {
+  useEffect(() => {
       if (appSettings.rolePermissions && appSettings.rolePermissions.length > 0) {
           setPermissions(appSettings.rolePermissions);
       }
@@ -256,6 +263,131 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
     setIsLoyaltyModalOpen(false);
     setEditingLoyaltyProgram(null);
     setLoyaltyForm({ title: '', description: '', targetKg: 300, durationMonths: 6, reward: '', isActive: true });
+  };
+
+  // --- HISTORY LOG DATA ---
+  const allActivities = useMemo(() => {
+    const logs: any[] = [];
+
+    // 1. Transactions (Penjualan)
+    transactions.forEach(t => {
+        logs.push({
+            id: t.id,
+            date: t.date,
+            timestamp: new Date(`${t.date}T${t.time || '00:00'}`).getTime(),
+            type: 'Penjualan',
+            reference: t.id,
+            description: `Penjualan ${t.customerType} - ${t.customerName}`,
+            amount: t.total,
+            user: 'Kasir', 
+            status: t.status,
+            details: t
+        });
+    });
+
+    // 2. Expenses (Pengeluaran)
+    expenses.forEach(e => {
+        logs.push({
+            id: e.id,
+            date: e.date,
+            timestamp: new Date(e.date).getTime(),
+            type: 'Pengeluaran',
+            reference: e.category,
+            description: `${e.division}: ${e.description}`,
+            amount: -e.amount,
+            details: e
+        });
+    });
+
+    // 3. Employee Financials (Gaji/HR)
+    employeeFinancials.forEach(ef => {
+        const empName = employees.find(emp => emp.id === ef.employeeId)?.name || 'Unknown';
+        logs.push({
+            id: ef.id,
+            date: ef.date,
+            timestamp: new Date(ef.date).getTime(),
+            type: 'Gaji/HR',
+            reference: ef.type,
+            description: `${ef.type} - ${empName}: ${ef.description}`,
+            amount: (ef.type === 'Kasbon' || ef.type === 'Potongan') ? ef.amount : -ef.amount, 
+            details: ef
+        });
+    });
+
+    // 4. Cattle Orders (PO Sapi)
+    cattleOrders.forEach(co => {
+        logs.push({
+            id: co.id,
+            date: co.orderDate.split('T')[0],
+            timestamp: new Date(co.orderDate).getTime(),
+            type: 'PO Sapi',
+            reference: co.supplierName,
+            description: `Order ${co.quantity} Ekor (${co.weightType})`,
+            amount: 0, 
+            status: co.totalLiveWeight ? 'Selesai' : 'Proses',
+            details: co
+        });
+    });
+
+    // 5. System Logs (Login/Action)
+    systemLogs.forEach(sys => {
+        logs.push({
+            id: sys.id,
+            date: sys.timestamp.split('T')[0],
+            timestamp: new Date(sys.timestamp).getTime(),
+            type: 'Aktivitas Akun',
+            reference: sys.action,
+            description: `${sys.userName} (${sys.role}) - ${sys.details}`,
+            amount: 0,
+            status: 'Logged',
+            location: sys.location,
+            device: sys.device,
+            ip: sys.ip,
+            details: sys
+        });
+    });
+
+    return logs.sort((a, b) => b.timestamp - a.timestamp);
+  }, [transactions, expenses, employeeFinancials, cattleOrders, employees, systemLogs]);
+
+  const filteredLogs = allActivities.filter(log => {
+    const matchesSearch = 
+        log.description.toLowerCase().includes(logSearchTerm.toLowerCase()) || 
+        log.reference.toLowerCase().includes(logSearchTerm.toLowerCase()) ||
+        log.id.toLowerCase().includes(logSearchTerm.toLowerCase());
+    
+    const matchesType = logFilterType === 'Semua' || log.type === logFilterType;
+    
+    let matchesDate = true;
+    if (logStartDate) matchesDate = matchesDate && log.date >= logStartDate;
+    if (logEndDate) matchesDate = matchesDate && log.date <= logEndDate;
+
+    return matchesSearch && matchesType && matchesDate;
+  });
+
+  const handleExportLogsPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.setFontSize(14);
+    doc.text("LAPORAN AKTIVITAS USAHA - SUBARU DAGING SAPI", 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Periode: ${logStartDate || 'Awal'} s/d ${logEndDate || 'Sekarang'}`, 14, 22);
+    
+    const tableBody = filteredLogs.map(log => [
+        log.date,
+        log.type,
+        log.reference,
+        log.description,
+        log.amount !== 0 ? `Rp ${Math.abs(log.amount).toLocaleString('id-ID')}` : '-'
+    ]);
+
+    autoTable(doc, {
+        startY: 30,
+        head: [['Tanggal', 'Tipe', 'Ref ID', 'Deskripsi', 'Nominal']],
+        body: tableBody,
+        headStyles: { fillColor: [139, 0, 0] }
+    });
+
+    doc.save(`Laporan_Aktivitas_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleUpdatePermissions = async () => {
@@ -505,6 +637,14 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                   }`}
                 >
                   <Shield size={16} /> Access Control
+                </button>
+                <button 
+                  onClick={() => setActiveTab('logs')}
+                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
+                    activeTab === 'logs' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
+                  }`}
+                >
+                  <History size={16} /> History Log
                 </button>
             </>
         )}
@@ -903,6 +1043,111 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                 <span>Hapus Log Lama</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {activeTab === 'logs' && (
+            <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <History size={20} className="text-brand-red" /> History & Log Aktivitas
+                        </h3>
+                        <p className="text-gray-400 text-sm">Rekam jejak transaksi dan aktivitas keamanan akun.</p>
+                    </div>
+                    <button 
+                        onClick={handleExportLogsPDF}
+                        className="bg-brand-red text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-red-900 transition-colors shadow-lg text-sm"
+                    >
+                        <Download size={16} /> Export PDF
+                    </button>
+                </div>
+
+                <div className="bg-[#1e1e1e] border border-white/5 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Cari ID, Nama User, atau Deskripsi..." 
+                            value={logSearchTerm}
+                            onChange={(e) => setLogSearchTerm(e.target.value)}
+                            className="w-full bg-[#121212] border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:border-brand-red outline-none"
+                        />
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
+                        <select 
+                            value={logFilterType} 
+                            onChange={(e) => setLogFilterType(e.target.value)}
+                            className="bg-[#121212] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-red outline-none"
+                        >
+                            <option value="Semua">Semua Tipe</option>
+                            <option value="Aktivitas Akun">Login & Aktivitas Akun</option>
+                            <option value="Penjualan">Penjualan</option>
+                            <option value="Pengeluaran">Pengeluaran</option>
+                            <option value="Gaji/HR">Gaji & HR</option>
+                            <option value="PO Sapi">PO Sapi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="bg-[#1e1e1e] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-400">
+                            <thead className="bg-[#151515] text-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4">Waktu</th>
+                                    <th className="px-6 py-4">Tipe</th>
+                                    <th className="px-6 py-4">Ref / Akun</th>
+                                    <th className="px-6 py-4">Deskripsi</th>
+                                    <th className="px-6 py-4 text-right">Nominal</th>
+                                    <th className="px-6 py-4 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {filteredLogs.map(log => (
+                                    <tr key={log.id} className="hover:bg-white/5 transition-colors group">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="text-white font-medium">{log.date}</span>
+                                                <span className="text-[10px] text-gray-500">{new Date(log.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                                log.type === 'Penjualan' ? 'bg-green-500/10 text-green-500' :
+                                                log.type === 'Pengeluaran' ? 'bg-red-500/10 text-red-500' :
+                                                log.type === 'PO Sapi' ? 'bg-brand-gold/10 text-brand-gold' :
+                                                log.type === 'Aktivitas Akun' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'
+                                            }`}>
+                                                {log.type}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-xs">{log.reference}</td>
+                                        <td className="px-6 py-4 text-white">{log.description}</td>
+                                        <td className={`px-6 py-4 text-right font-mono ${log.amount > 0 ? 'text-green-500' : log.amount < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                                            {log.amount !== 0 ? `Rp ${Math.abs(log.amount).toLocaleString()}` : '-'}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <button 
+                                                onClick={() => setSelectedLogEntry(log)}
+                                                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                <Eye size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredLogs.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="text-center py-12 text-gray-500">
+                                            Tidak ada riwayat aktivitas yang sesuai filter.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -1531,6 +1776,68 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
       )}
 
       {/* Confirmation Modal */}
+      {/* History Log Detail Modal */}
+      {selectedLogEntry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <div className="bg-[#1e1e1e] w-full max-w-lg rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                  <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
+                      <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                          <History size={20} className="text-brand-red" /> Detail Aktivitas
+                      </h3>
+                      <button onClick={() => setSelectedLogEntry(null)} className="text-gray-400 hover:text-white"><XIcon size={24} /></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                              <p className="text-gray-500">Waktu</p>
+                              <p className="text-white font-medium">{selectedLogEntry.date} {new Date(selectedLogEntry.timestamp).toLocaleTimeString()}</p>
+                          </div>
+                          <div>
+                              <p className="text-gray-500">Tipe</p>
+                              <p className="text-brand-gold font-bold uppercase">{selectedLogEntry.type}</p>
+                          </div>
+                      </div>
+                      
+                      <div>
+                          <p className="text-gray-500 text-sm mb-1">Deskripsi</p>
+                          <p className="text-white bg-black/20 p-3 rounded-lg border border-white/5">{selectedLogEntry.description}</p>
+                      </div>
+
+                      {selectedLogEntry.type === 'Aktivitas Akun' && (
+                          <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                  <span className="text-blue-300">IP Address</span>
+                                  <span className="text-white font-mono">{selectedLogEntry.ip}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span className="text-blue-300">Lokasi</span>
+                                  <span className="text-white">{selectedLogEntry.location}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span className="text-blue-300">Perangkat</span>
+                                  <span className="text-white text-xs truncate max-w-[200px]">{selectedLogEntry.device}</span>
+                              </div>
+                          </div>
+                      )}
+
+                      {selectedLogEntry.amount !== 0 && (
+                          <div className="flex justify-between items-center pt-4 border-t border-white/10">
+                              <span className="text-gray-400">Nominal</span>
+                              <span className={`text-xl font-bold font-mono ${selectedLogEntry.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                  Rp {Math.abs(selectedLogEntry.amount).toLocaleString()}
+                              </span>
+                          </div>
+                      )}
+                  </div>
+                  <div className="p-4 bg-black/20 text-center">
+                      <button onClick={() => setSelectedLogEntry(null)} className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded transition-colors">
+                          Tutup
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {confirmModal?.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in duration-200">

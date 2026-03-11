@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Clock, UserCheck, Search, Printer, Plus, X as XIcon, Save, Edit, Shield, Download, MessageCircle, MessageSquare, Megaphone, Bluetooth, Loader2, Send, Trash2, UserPlus, Key } from 'lucide-react';
+import { MapPin, Clock, UserCheck, Search, Printer, Plus, X as XIcon, Save, Edit, Shield, Download, MessageCircle, MessageSquare, Megaphone, Bluetooth, Loader2, Send, Trash2, UserPlus, Key, AlertCircle } from 'lucide-react';
 import { useStore } from '../StoreContext';
 import { Employee, EmployeeFinancial, PrinterConnection, User as UserType, Role, ReceiptData } from '../types';
 import { createPortal } from 'react-dom';
@@ -84,10 +84,10 @@ const PrintableSlip = ({ slipData, paperSize }: { slipData: ReceiptData | null; 
   );
 };
 
-type HRTab = 'overview' | 'attendance' | 'payroll' | 'financials' | 'users';
+type HRTab = 'overview' | 'attendance' | 'payroll' | 'financials' | 'users' | 'monitor';
 
 const HR: React.FC<HRProps> = ({ user }) => {
-  const { employees, setEmployees, employeeFinancials, addEmployeeFinancial, searchQuery, printerConfig, addSystemLog, attendanceHistory, appSettings, outlets, checkInEmployee } = useStore();
+  const { employees, setEmployees, employeeFinancials, addEmployeeFinancial, searchQuery, printerConfig, addSystemLog, attendanceHistory, appSettings, outlets, checkInEmployee, users: allUsers, approveUser } = useStore();
   const [activeTab, setActiveTab] = useState<HRTab>('overview');
   const [localSearch, setLocalSearch] = useState('');
   const [viewHistory, setViewHistory] = useState(false);
@@ -624,7 +624,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-white/10 shrink-0 overflow-x-auto">
-        {['overview', 'attendance', 'payroll', 'financials', 'users'].map(tab => (
+        {['overview', 'attendance', 'payroll', 'financials', 'users', 'monitor'].map(tab => (
             <button
                 key={tab}
                 onClick={() => setActiveTab(tab as HRTab)}
@@ -632,7 +632,11 @@ const HR: React.FC<HRProps> = ({ user }) => {
                     activeTab === tab ? 'border-brand-red text-white' : 'border-transparent text-gray-400 hover:text-white'
                 }`}
             >
-                {tab === 'financials' ? 'Catatan Keuangan' : tab === 'payroll' ? 'Gaji Mingguan' : tab === 'attendance' ? 'Kehadiran' : tab === 'users' ? 'Manajemen User' : tab}
+                {tab === 'financials' ? 'Catatan Keuangan' : 
+                 tab === 'payroll' ? 'Gaji Mingguan' : 
+                 tab === 'attendance' ? 'Kehadiran' : 
+                 tab === 'users' ? 'Manajemen User' : 
+                 tab === 'monitor' ? 'System Monitor' : tab}
             </button>
         ))}
       </div>
@@ -1052,6 +1056,64 @@ const HR: React.FC<HRProps> = ({ user }) => {
             </div>
         )}
 
+        {/* SYSTEM MONITOR TAB */}
+        {activeTab === 'monitor' && (
+            <div className="space-y-6">
+                <div className="bg-[#1e1e1e] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="p-4 border-b border-white/10 bg-white/[0.02]">
+                        <h3 className="text-white font-medium flex items-center gap-2">
+                            <Shield size={18} className="text-brand-gold" />
+                            Menunggu Persetujuan ({allUsers.filter(u => !u.isApproved).length})
+                        </h3>
+                    </div>
+                    
+                    <div className="divide-y divide-white/5">
+                        {allUsers.filter(u => !u.isApproved).length === 0 ? (
+                            <div className="p-12 text-center">
+                                <UserCheck size={48} className="mx-auto text-gray-700 mb-4" />
+                                <p className="text-gray-500">Tidak ada permintaan persetujuan saat ini.</p>
+                            </div>
+                        ) : (
+                            allUsers.filter(u => !u.isApproved).map(u => (
+                                <div key={u.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-brand-red/20 flex items-center justify-center text-brand-red font-bold">
+                                            {u.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-white">{u.name}</div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-2">
+                                                <span>@{u.username}</span>
+                                                <span className="w-1 h-1 bg-gray-700 rounded-full"></span>
+                                                <span className="text-brand-gold uppercase tracking-wider">{u.role}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm(`Setujui akses untuk ${u.name}?`)) {
+                                                await approveUser(u.id);
+                                                getUsers().then(setUsers);
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-emerald-900/20"
+                                    >
+                                        <UserCheck size={16} /> Setujui Akses
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 bg-amber-900/10 border border-amber-500/20 rounded-xl flex gap-3">
+                    <AlertCircle className="text-amber-500 shrink-0" size={20} />
+                    <p className="text-xs text-amber-200/70 leading-relaxed">
+                        <strong className="text-amber-400">Penting:</strong> Hanya berikan persetujuan kepada staf yang Anda kenal. Setelah disetujui, user akan memiliki akses penuh sesuai dengan role yang diberikan.
+                    </p>
+                </div>
+            </div>
+        )}
       </div>
 
       {/* MODAL USER MANAGEMENT */}

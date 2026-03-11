@@ -11,9 +11,7 @@ import {
   Search, 
   Settings, 
   Contact2,
-  Shield,
   X as XIcon,
-  History,
   Briefcase,
   FolderOpen,
   ArrowUp,
@@ -91,9 +89,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
-    { id: 'admin_dashboard', label: 'System Monitor', icon: Shield, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
     { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
-    { id: 'history', label: 'History & Log', icon: History, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
     { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN] },
     { id: 'pos', label: 'Kasir (POS)', icon: Store, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.CASHIER, Role.RPH_ADMIN] },
     { id: 'finance', label: 'Keuangan', icon: Calculator, roles: [Role.ADMIN] },
