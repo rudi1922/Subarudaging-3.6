@@ -240,8 +240,33 @@ export class PrinterService {
       }
   }
 
+  // Check if printer is configured for the selected connection
+  public checkConfig(): { ready: boolean; message?: string } {
+    if (this.config.connection === PrinterConnection.SYSTEM) {
+        return { ready: true };
+    }
+    
+    if (!this.config.deviceId || !this.config.deviceName) {
+        return { 
+            ready: false, 
+            message: `Printer ${this.config.connection} belum dikonfigurasi. Silakan atur di menu Pengaturan.` 
+        };
+    }
+    
+    return { ready: true };
+  }
+
   // Print Function
   public async print(data: ReceiptData | PrintingData): Promise<void> {
+    const configCheck = this.checkConfig();
+    if (!configCheck.ready && this.config.connection !== PrinterConnection.SYSTEM) {
+        const proceed = window.confirm(`${configCheck.message}\n\nLanjutkan menggunakan dialog cetak sistem (Browser)?`);
+        if (!proceed) return;
+        // Fallback to system print
+        window.print();
+        return;
+    }
+
     if (this.config.connection === PrinterConnection.SYSTEM) {
       window.print();
     } else if (this.config.connection === PrinterConnection.BLUETOOTH) {
