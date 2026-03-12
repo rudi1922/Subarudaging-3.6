@@ -19,7 +19,8 @@ import MarketAnalysis from './components/MarketAnalysis';
 import LoginModal from './components/LoginModal';
 import WelcomeModal from './components/WelcomeModal';
 import AIChatbot from './components/AIChatbot';
-import VehicleManager from './components/VehicleManager';
+import Accounting from './components/Accounting';
+import DirectorPrivate from './components/DirectorPrivate';
 import { User, Role, SystemLog } from './types';
 import { StoreProvider, useStore } from './StoreContext';
 import { verifySession, logoutUser } from './services/auth';
@@ -179,8 +180,6 @@ const AppContent = () => {
     switch (currentView) {
       case 'dashboard': 
         return <Dashboard />;
-      case 'vehicles':
-        return <VehicleManager />;
       case 'admin_dashboard':
         return <AdminDashboard />;
       case 'archive': return <Archive user={user!} />;
@@ -202,6 +201,8 @@ const AppContent = () => {
       case 'distribution': return <Distribution />;
       case 'market_analysis': return <MarketAnalysis />;
       case 'commissions': return <CommissionDashboard user={user!} />;
+      case 'accounting': return <Accounting user={user!} />;
+      case 'director_private': return <DirectorPrivate user={user!} />;
       case 'settings': return <Settings user={user!} />;
       default: return <Dashboard />;
     }

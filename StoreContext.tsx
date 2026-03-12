@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Product, Transaction, Receivable, CartItem, Expense, EmployeeFinancial, Employee, CattleOrder, Outlet, Notification, Role, VisitRecord, Lead, SystemLog, CattlePrice, AppSettings, PrinterConfig, PrinterType, PrinterConnection, Customer, User, Delivery, Vehicle, MarketNote, PricePoint, MarketSurvey, WeighingLog, AttendanceRecord, Supplier, DebtPayment, CattleType, RolePermissions, GalleryItem, LoyaltyProgram, Commission } from './types';
+import { Product, Transaction, Receivable, CartItem, Expense, EmployeeFinancial, Employee, CattleOrder, Outlet, Notification, Role, VisitRecord, Lead, SystemLog, CattlePrice, AppSettings, PrinterConfig, PrinterType, PrinterConnection, Customer, User, Delivery, Vehicle, MarketNote, PricePoint, MarketSurvey, WeighingLog, AttendanceRecord, Supplier, DebtPayment, CattleType, RolePermissions, GalleryItem, LoyaltyProgram, Commission, Asset, PrivateTransaction } from './types';
 
 interface StoreContextType {
   products: Product[];
@@ -92,6 +92,13 @@ interface StoreContextType {
   approveUser: (id: string) => Promise<void>;
   customerMode: boolean;
   setCustomerMode: (mode: boolean) => void;
+  assets: Asset[];
+  addAsset: (asset: Asset) => void;
+  updateAsset: (asset: Asset) => void;
+  deleteAsset: (id: string) => void;
+  privateTransactions: PrivateTransaction[];
+  addPrivateTransaction: (tx: PrivateTransaction) => void;
+  deletePrivateTransaction: (id: string) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -129,6 +136,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [collectionTarget, setCollectionTarget] = useState<number>(10000000); // Default 10jt
   const [customerMode, setCustomerMode] = useState<boolean>(false);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [privateTransactions, setPrivateTransactions] = useState<PrivateTransaction[]>([]);
 
   const [appSettings, setAppSettings] = useState<AppSettings>({
       allowNegativeStock: false,
@@ -710,6 +719,26 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const { error } = await supabase.from('products').delete().eq('id', id);
           if (error) console.error('Error deleting product from Supabase:', error);
       }
+  };
+
+  const addAsset = (asset: Asset) => {
+    setAssets(prev => [...prev, asset]);
+  };
+
+  const updateAsset = (asset: Asset) => {
+    setAssets(prev => prev.map(a => a.id === asset.id ? asset : a));
+  };
+
+  const deleteAsset = (id: string) => {
+    setAssets(prev => prev.filter(a => a.id !== id));
+  };
+
+  const addPrivateTransaction = (tx: PrivateTransaction) => {
+    setPrivateTransactions(prev => [...prev, tx]);
+  };
+
+  const deletePrivateTransaction = (id: string) => {
+    setPrivateTransactions(prev => prev.filter(t => t.id !== id));
   };
 
   const addCattlePrice = async (price: CattlePrice) => {
@@ -1519,6 +1548,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         approveUser,
         customerMode,
         setCustomerMode,
+        assets,
+        addAsset,
+        updateAsset,
+        deleteAsset,
+        privateTransactions,
+        addPrivateTransaction,
+        deletePrivateTransaction,
         navigationParams,
         setNavigationParams,
         galleryItems,

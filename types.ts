@@ -440,6 +440,28 @@ export interface ReceiptItem {
     total?: number;
 }
 
+export interface Asset {
+  id: string;
+  name: string;
+  category: 'Kendaraan' | 'Peralatan' | 'Properti' | 'Lainnya';
+  purchaseDate: string;
+  purchasePrice: number;
+  currentValue: number;
+  depreciationRate: number; // Percentage per year
+  notes?: string;
+  outletId?: string;
+}
+
+export interface PrivateTransaction {
+  id: string;
+  date: string;
+  type: 'Pemasukan' | 'Pengeluaran';
+  category: string;
+  amount: number;
+  description: string;
+  userId: string; // Only for Director/Admin
+}
+
 export interface ReceiptData {
     title?: string;
     subtitle?: string;
