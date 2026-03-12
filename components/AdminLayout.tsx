@@ -15,7 +15,8 @@ import {
   Briefcase,
   FolderOpen,
   ArrowUp,
-  Wallet
+  Wallet,
+  Truck // Tambahan icon untuk Armada
 } from 'lucide-react';
 import { User, Role } from '../types';
 import { useStore } from '../StoreContext';
@@ -92,6 +93,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
     { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN] },
     { id: 'pos', label: 'Kasir (POS)', icon: Store, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.CASHIER, Role.RPH_ADMIN] },
+    { id: 'vehicles', label: 'Armada Kendaraan', icon: Truck, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, // MENU BARU DI SINI
     { id: 'finance', label: 'Keuangan', icon: Calculator, roles: [Role.ADMIN] },
     { id: 'field_ops', label: 'Lapangan (Sales & DC)', icon: Briefcase, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.DEBT_COLLECTOR] }, 
     { id: 'contacts', label: 'Pelanggan & Rekanan', icon: Contact2, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
@@ -231,15 +233,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           <div className="flex items-center gap-4 lg:gap-6">
-            {/* Search Icon Mobile */}
             <button 
                 className="md:hidden text-gray-400 hover:text-white"
                 onClick={() => {
                     const searchInput = document.querySelector('input[placeholder*="Global Search"]') as HTMLInputElement;
                     if (searchInput) {
                         searchInput.focus();
-                        // On mobile, we might want to show a modal or just expand the search bar
-                        // For now, let's just alert that search is active or focus it
                     }
                 }}
             >
@@ -255,7 +254,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                     {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-red rounded-full border border-black animate-pulse"></span>}
                 </button>
 
-                {/* Notification Dropdown */}
                 {isNotifOpen && (
                     <div className="absolute right-0 mt-2 w-72 md:w-80 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
                         <div className="p-3 border-b border-white/10 flex justify-between items-center">
