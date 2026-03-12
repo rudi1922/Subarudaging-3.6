@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase'; // Pastikan path ini sesuai dengan file konfigurasi Anda
+import { supabase } from '../supabase'; // Pastikan path ini sesuai dengan file konfigurasi Anda
 
 export default function VehicleManager() {
   const [vehicles, setVehicles] = useState([]);
@@ -68,3 +68,4 @@ export default function VehicleManager() {
   );
 
 }
+
