@@ -1,72 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient.ts'; // Pastikan path ini sesuai dengan file konfigurasi Anda
+import { supabase } from '../lib/supabaseClient';
 
-export default function VehicleManager() {
+const VehicleManager = () => {
   const [vehicles, setVehicles] = useState([]);
   const [newPlate, setNewPlate] = useState('');
+  const [type, setType] = useState('Motor');
 
-  // Fungsi untuk mengambil data dari Supabase
+  // Load data armada dari Supabase
   const fetchVehicles = async () => {
     const { data, error } = await supabase.from('vehicles').select('*');
     if (!error) setVehicles(data);
   };
 
-  // Fungsi untuk menambah data ke Supabase
-  const addVehicle = async (e) => {
-    e.preventDefault();
+  useEffect(() => { fetchVehicles(); }, []);
+
+  const addVehicle = async () => {
+    if (!newPlate) return;
     const { error } = await supabase.from('vehicles').insert([
-      { 
-        id: `VHC-${Math.floor(Math.random() * 1000)}`, // ID Acak sederhana
-        plate_number: newPlate, 
-        type: 'Mobil Box Pendingin', 
-        status: 'Tersedia' 
-      }
+      { id: `VH-${Date.now()}`, plate_number: newPlate, type: type, status: 'Tersedia' }
     ]);
-    
     if (!error) {
       setNewPlate('');
-      fetchVehicles(); // Refresh daftar setelah sukses
+      fetchVehicles();
     }
   };
 
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
-
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md max-w-2xl mx-auto mt-10">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">Manajemen Armada Subaru Daging</h2>
+    <div className="p-6 bg-white rounded-lg shadow-md text-gray-800">
+      <h2 className="text-2xl font-bold mb-4">Manajemen Armada Subaru Daging</h2>
       
-      <form onSubmit={addVehicle} className="mb-6 flex gap-2">
+      {/* Form Tambah */}
+      <div className="flex gap-2 mb-6">
         <input 
-          type="text" 
+          className="border p-2 rounded w-full"
+          placeholder="Plat Nomor (Contoh: BE 1234 XY)"
           value={newPlate}
           onChange={(e) => setNewPlate(e.target.value)}
-          placeholder="Masukkan Plat Nomor (Misal: BE 1234 XY)" 
-          className="border p-2 rounded w-full"
-          required
         />
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          Tambah Armada
+        <select className="border p-2 rounded" onChange={(e) => setType(e.target.value)}>
+          <option value="Motor">Motor</option>
+          <option value="Mobil Box">Mobil Box</option>
+          <option value="Engkel">Engkel</option>
+        </select>
+        <button onClick={addVehicle} className="bg-blue-600 text-white px-4 py-2 rounded">
+          Tambah
         </button>
-      </form>
+      </div>
 
-      <ul className="divide-y divide-gray-200">
-        {vehicles.map((v) => (
-          <li key={v.id} className="py-3 flex justify-between items-center">
-            <div>
-              <p className="font-semibold">{v.plate_number}</p>
-              <p className="text-sm text-gray-500">{v.type}</p>
-            </div>
-            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-              {v.status}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {/* Tabel Armada */}
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="border-b bg-gray-100">
+            <th className="p-2">Plat Nomor</th>
+            <th className="p-2">Tipe</th>
+            <th className="p-2">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vehicles.map((v) => (
+            <tr key={v.id} className="border-b">
+              <td className="p-2 font-mono">{v.plate_number}</td>
+              <td className="p-2">{v.type}</td>
+              <td className="p-2">
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm">
+                  {v.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
+};
 
-}
-
-
+export default VehicleManager;
