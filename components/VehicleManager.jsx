@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../supabaseClient';
 
 const VehicleManager = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -75,3 +75,4 @@ const VehicleManager = () => {
 };
 
 export default VehicleManager;
+
