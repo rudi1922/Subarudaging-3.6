@@ -123,7 +123,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const canManageProducts = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR;
   const canManageCattle = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR || user?.role === Role.RPH_ADMIN;
   
-  const [activeTab, setActiveTab] = useState<'products' | 'cattle'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'cattle' | 'catalog'>('products');
   
   // ... existing state
   const [localSearch, setLocalSearch] = useState('');
@@ -361,6 +361,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
       {/* TABS */}
       <div className="flex gap-4 border-b border-white/10 overflow-x-auto">
         <button onClick={() => setActiveTab('products')} className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 ${activeTab === 'products' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'}`}><Package size={16} /> Stok Produk</button>
+        <button onClick={() => setActiveTab('catalog')} className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 ${activeTab === 'catalog' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'}`}><Beef size={16} /> Katalog Visual</button>
         <button onClick={() => setActiveTab('cattle')} className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 ${activeTab === 'cattle' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'}`}><Beef size={16} /> PO Sapi Hidup</button>
       </div>
 
@@ -422,6 +423,34 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
                 </div>
             </div>
         </>
+      ) : activeTab === 'catalog' ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {filtered.map(product => (
+                <div key={product.id} className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden group">
+                    <div className="aspect-square bg-black/40 relative overflow-hidden">
+                        {product.image ? (
+                            <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-700">
+                                <Package size={48} />
+                            </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button 
+                                onClick={() => handleOpenEdit(product)}
+                                className="bg-brand-red text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest"
+                            >
+                                Ganti Foto
+                            </button>
+                        </div>
+                    </div>
+                    <div className="p-3">
+                        <p className="text-white font-bold text-sm truncate">{product.name}</p>
+                        <p className="text-xs text-gray-500">{product.category}</p>
+                    </div>
+                </div>
+            ))}
+        </div>
       ) : (
          /* CATTLE PO VIEW */
          <div className="space-y-6">

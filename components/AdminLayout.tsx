@@ -16,10 +16,12 @@ import {
   FolderOpen,
   ArrowUp,
   Wallet,
-  Truck // Tambahan icon untuk Armada
+  ShieldCheck,
+  TrendingUp
 } from 'lucide-react';
 import { User, Role } from '../types';
 import { useStore } from '../StoreContext';
+import SearchModal from './SearchModal';
 
 interface AdminLayoutProps {
   user: User;
@@ -40,10 +42,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user.avatar || '');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = React.useRef<HTMLElement>(null);
-  const { searchQuery, setSearchQuery, notifications, addSystemLog, updateUser } = useStore();
+  const { searchQuery, notifications, addSystemLog, updateUser } = useStore();
 
   const handleUpdateProfile = () => {
       updateUser({ ...user, avatar: avatarUrl });
@@ -90,15 +93,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
-    { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
-    { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN] },
     { id: 'pos', label: 'Kasir (POS)', icon: Store, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.CASHIER, Role.RPH_ADMIN] },
-    { id: 'vehicles', label: 'Armada Kendaraan', icon: Truck, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, // MENU BARU DI SINI
-    { id: 'finance', label: 'Keuangan', icon: Calculator, roles: [Role.ADMIN] },
+    { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN] },
     { id: 'field_ops', label: 'Lapangan (Sales & DC)', icon: Briefcase, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.DEBT_COLLECTOR] }, 
     { id: 'contacts', label: 'Pelanggan & Rekanan', icon: Contact2, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
+    { id: 'finance', label: 'Keuangan', icon: Calculator, roles: [Role.ADMIN] },
+    { id: 'accounting', label: 'Akuntansi & Aktiva', icon: TrendingUp, roles: [Role.ADMIN, Role.DIRECTOR] },
+    { id: 'director_private', label: 'Keuangan Pribadi', icon: ShieldCheck, roles: [Role.DIRECTOR, Role.ADMIN] },
     { id: 'hr', label: 'Karyawan & Absensi', icon: Users, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
     { id: 'commissions', label: 'Penghasilan Saya', icon: Wallet, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.CUSTOMER] },
+    { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
     { id: 'settings', label: 'Pengaturan', icon: Settings, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
   ];
 
@@ -227,20 +231,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               type="text" 
               placeholder="Cari (Global Search)..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#252525] border border-white/10 rounded-full py-1.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-brand-red"
+              onFocus={() => setIsSearchModalOpen(true)}
+              readOnly
+              className="w-full bg-[#252525] border border-white/10 rounded-full py-1.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-brand-red cursor-pointer"
             />
           </div>
 
           <div className="flex items-center gap-4 lg:gap-6">
+            {/* Search Icon Mobile */}
             <button 
                 className="md:hidden text-gray-400 hover:text-white"
-                onClick={() => {
-                    const searchInput = document.querySelector('input[placeholder*="Global Search"]') as HTMLInputElement;
-                    if (searchInput) {
-                        searchInput.focus();
-                    }
-                }}
+                onClick={() => setIsSearchModalOpen(true)}
             >
                <Search size={20} />
             </button>
@@ -254,6 +255,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                     {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-red rounded-full border border-black animate-pulse"></span>}
                 </button>
 
+                {/* Notification Dropdown */}
                 {isNotifOpen && (
                     <div className="absolute right-0 mt-2 w-72 md:w-80 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
                         <div className="p-3 border-b border-white/10 flex justify-between items-center">
@@ -336,6 +338,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </div>
             </div>
         )}
+
+        <SearchModal 
+            isOpen={isSearchModalOpen} 
+            onClose={() => setIsSearchModalOpen(false)} 
+        />
       </div>
     </div>
   );

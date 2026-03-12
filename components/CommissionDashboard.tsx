@@ -8,12 +8,17 @@ interface CommissionDashboardProps {
 }
 
 const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
-  const { commissions, users } = useStore();
+  const { commissions, users, addSystemLog } = useStore();
   const [copied, setCopied] = React.useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
+  const [withdrawAmount, setWithdrawAmount] = React.useState<number>(0);
+  const [withdrawMethod, setWithdrawMethod] = React.useState<'Transfer Bank' | 'E-Wallet'>('Transfer Bank');
+  const [withdrawDetails, setWithdrawDetails] = React.useState('');
 
   const myCommissions = commissions.filter(c => c.referrerId === user.id);
   const totalEarnings = myCommissions.reduce((sum, c) => sum + c.amount, 0);
   const pendingEarnings = myCommissions.filter(c => c.status === 'pending').reduce((sum, c) => sum + c.amount, 0);
+  const availableEarnings = myCommissions.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.amount, 0);
   
   const referralLink = `${window.location.origin}/?ref=${user.referralCode || user.username}`;
 
@@ -23,6 +28,32 @@ const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleWithdraw = () => {
+    if (withdrawAmount > availableEarnings) {
+      alert('Saldo tidak mencukupi!');
+      return;
+    }
+    
+    // Simulate withdrawal request
+    addSystemLog({
+      id: `log-${Date.now()}`,
+      userId: user.id,
+      userName: user.name,
+      role: user.role,
+      action: 'ACTION',
+      details: `Permintaan Penarikan: Rp ${withdrawAmount.toLocaleString()} via ${withdrawMethod} (${withdrawDetails})`,
+      timestamp: new Date().toISOString(),
+      ip: '127.0.0.1',
+      location: 'Commission',
+      device: 'Web'
+    });
+
+    alert('Permintaan penarikan berhasil dikirim! Admin akan memproses dalam 1-3 hari kerja.');
+    setShowWithdrawModal(false);
+    setWithdrawAmount(0);
+    setWithdrawDetails('');
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -30,43 +61,128 @@ const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
           <h1 className="text-3xl font-display font-bold text-white tracking-tight">Penghasilan Saya</h1>
           <p className="text-gray-400 text-sm">Pantau komisi dan performa referral Anda</p>
         </div>
-        <div className="bg-brand-gold/10 border border-brand-gold/20 px-4 py-2 rounded-full flex items-center gap-2">
-          <span className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">Status: Active Partner</span>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowWithdrawModal(true)}
+            className="bg-brand-red text-white px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-brand-red/20"
+          >
+            Tarik Dana
+          </button>
+          <div className="bg-brand-gold/10 border border-brand-gold/20 px-4 py-2 rounded-full flex items-center gap-2">
+            <span className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">Status: Active Partner</span>
+          </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-[#1e1e1e] to-[#121212] p-6 rounded-2xl border border-white/5 shadow-xl relative overflow-hidden group">
           <div className="relative z-10">
             <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Total Pendapatan</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-white font-mono">
+            <h3 className="text-2xl font-bold text-white font-mono">
               Rp {totalEarnings.toLocaleString('id-ID')}
             </h3>
           </div>
-          <Wallet className="absolute -right-4 -bottom-4 text-white/5 w-20 h-20 md:w-24 md:h-24 group-hover:scale-110 transition-transform" />
+          <Wallet className="absolute -right-4 -bottom-4 text-white/5 w-20 h-20 group-hover:scale-110 transition-transform" />
+        </div>
+
+        <div className="bg-gradient-to-br from-[#1e1e1e] to-[#121212] p-6 rounded-2xl border border-white/5 shadow-xl relative overflow-hidden group">
+          <div className="relative z-10">
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Tersedia</p>
+            <h3 className="text-2xl font-bold text-green-500 font-mono">
+              Rp {availableEarnings.toLocaleString('id-ID')}
+            </h3>
+          </div>
+          <CheckCircle className="absolute -right-4 -bottom-4 text-green-500/5 w-20 h-20 group-hover:scale-110 transition-transform" />
         </div>
 
         <div className="bg-gradient-to-br from-[#1e1e1e] to-[#121212] p-6 rounded-2xl border border-white/5 shadow-xl relative overflow-hidden group">
           <div className="relative z-10">
             <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Menunggu Pencairan</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-brand-gold font-mono">
+            <h3 className="text-2xl font-bold text-brand-gold font-mono">
               Rp {pendingEarnings.toLocaleString('id-ID')}
             </h3>
           </div>
-          <Clock className="absolute -right-4 -bottom-4 text-brand-gold/5 w-20 h-20 md:w-24 md:h-24 group-hover:scale-110 transition-transform" />
+          <Clock className="absolute -right-4 -bottom-4 text-brand-gold/5 w-20 h-20 group-hover:scale-110 transition-transform" />
         </div>
 
-        <div className="bg-gradient-to-br from-[#1e1e1e] to-[#121212] p-6 rounded-2xl border border-white/5 shadow-xl relative overflow-hidden group sm:col-span-2 lg:col-span-1">
+        <div className="bg-gradient-to-br from-[#1e1e1e] to-[#121212] p-6 rounded-2xl border border-white/5 shadow-xl relative overflow-hidden group">
           <div className="relative z-10">
             <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Total Referral</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-blue-400 font-mono">
-              {myCommissions.length} Transaksi
+            <h3 className="text-2xl font-bold text-blue-400 font-mono">
+              {myCommissions.length}
             </h3>
           </div>
-          <Users className="absolute -right-4 -bottom-4 text-blue-400/5 w-20 h-20 md:w-24 md:h-24 group-hover:scale-110 transition-transform" />
+          <Users className="absolute -right-4 -bottom-4 text-blue-400/5 w-20 h-20 group-hover:scale-110 transition-transform" />
         </div>
       </div>
+
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1e1e1e] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
+              <h3 className="text-xl font-bold text-white">Tarik Dana</h3>
+              <button onClick={() => setShowWithdrawModal(false)} className="text-gray-400 hover:text-white">
+                <Clock size={24} className="rotate-45" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-black/40 p-4 rounded-xl border border-white/5">
+                <p className="text-xs text-gray-500 uppercase font-bold mb-1">Saldo Tersedia</p>
+                <p className="text-xl font-bold text-green-500 font-mono">Rp {availableEarnings.toLocaleString()}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-xs text-gray-500 uppercase font-bold">Jumlah Penarikan</label>
+                <input 
+                  type="number" 
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(parseInt(e.target.value))}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-brand-red outline-none"
+                  placeholder="Masukkan jumlah..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-gray-500 uppercase font-bold">Metode Penarikan</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => setWithdrawMethod('Transfer Bank')}
+                    className={`py-2 rounded-lg border text-xs font-bold transition-all ${withdrawMethod === 'Transfer Bank' ? 'bg-brand-red text-white border-brand-red' : 'bg-black/30 text-gray-500 border-white/10'}`}
+                  >
+                    Transfer Bank
+                  </button>
+                  <button 
+                    onClick={() => setWithdrawMethod('E-Wallet')}
+                    className={`py-2 rounded-lg border text-xs font-bold transition-all ${withdrawMethod === 'E-Wallet' ? 'bg-brand-red text-white border-brand-red' : 'bg-black/30 text-gray-500 border-white/10'}`}
+                  >
+                    E-Wallet
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-gray-500 uppercase font-bold">Detail Rekening / E-Wallet</label>
+                <textarea 
+                  value={withdrawDetails}
+                  onChange={(e) => setWithdrawDetails(e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white h-24 resize-none focus:border-brand-red outline-none text-sm"
+                  placeholder={withdrawMethod === 'Transfer Bank' ? 'Nama Bank, No Rekening, Atas Nama' : 'Provider (Gopay/OVO/Dana), No HP'}
+                />
+              </div>
+
+              <button 
+                onClick={handleWithdraw}
+                disabled={!withdrawAmount || withdrawAmount <= 0 || !withdrawDetails}
+                className="w-full py-4 bg-brand-red text-white font-bold rounded-xl shadow-lg shadow-brand-red/20 hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                Kirim Permintaan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Referral Link Section */}
       <div className="bg-[#1e1e1e] p-6 md:p-8 rounded-2xl border border-brand-gold/20 shadow-2xl relative overflow-hidden">

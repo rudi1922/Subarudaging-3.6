@@ -10,6 +10,7 @@ const Distribution: React.FC = () => {
   const [showNewDeliveryModal, setShowNewDeliveryModal] = useState(false);
   const [showNewVehicleModal, setShowNewVehicleModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState<string | null>(null); // Delivery ID
+  const mapCenter = { lat: -5.3971, lng: 105.2668 }; // Bandar Lampung
 
   // New Delivery Form State
   const [newDelivery, setNewDelivery] = useState<Partial<Delivery>>({
@@ -177,6 +178,14 @@ const Distribution: React.FC = () => {
         >
           Laporan Pengiriman
         </button>
+        <button 
+          onClick={() => setActiveTab('map' as any)}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === ('map' as any) ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
+          }`}
+        >
+          Peta Pengiriman
+        </button>
       </div>
 
       {/* Content */}
@@ -306,6 +315,60 @@ const Distribution: React.FC = () => {
                       </div>
                   </div>
               ))}
+          </div>
+      ) : activeTab === ('map' as any) ? (
+          <div className="space-y-6">
+              <div className="bg-[#1e1e1e] border border-white/5 rounded-xl overflow-hidden h-[500px] relative">
+                  {/* Google Maps Integration */}
+                  <iframe 
+                    width="100%" 
+                    height="100%" 
+                    frameBorder="0" 
+                    style={{ border: 0 }}
+                    src={`https://www.google.com/maps/embed/v1/view?key=YOUR_API_KEY_HERE&center=${mapCenter.lat},${mapCenter.lng}&zoom=13&maptype=roadmap`}
+                    allowFullScreen
+                    title="Google Maps"
+                    className="grayscale opacity-80"
+                  ></iframe>
+                  
+                  {/* Overlay Info */}
+                  <div className="absolute top-4 left-4 bg-[#121212]/90 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-2xl max-w-xs">
+                      <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                          <MapPin size={16} className="text-brand-red" />
+                          Status Lokasi Armada
+                      </h4>
+                      <div className="space-y-3">
+                          {vehicles.map(v => (
+                              <div key={v.id} className="flex items-center justify-between gap-4">
+                                  <div className="flex items-center gap-2">
+                                      <div className={`w-2 h-2 rounded-full ${v.status === 'Tersedia' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+                                      <span className="text-xs text-gray-300 font-mono">{v.plateNumber}</span>
+                                  </div>
+                                  <span className="text-[10px] text-gray-500">{v.status === 'Tersedia' ? 'Standby' : 'On Mission'}</span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  <div className="absolute bottom-4 right-4 bg-brand-red text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg">
+                      LIVE TRACKING ACTIVE
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-[#1e1e1e] p-4 rounded-xl border border-white/5">
+                      <p className="text-xs text-gray-500 mb-1">Total Armada Aktif</p>
+                      <p className="text-2xl font-bold text-white">{vehicles.length}</p>
+                  </div>
+                  <div className="bg-[#1e1e1e] p-4 rounded-xl border border-white/5">
+                      <p className="text-xs text-gray-500 mb-1">Pengiriman Sedang Jalan</p>
+                      <p className="text-2xl font-bold text-blue-500">{deliveries.filter(d => d.status === 'Dikirim').length}</p>
+                  </div>
+                  <div className="bg-[#1e1e1e] p-4 rounded-xl border border-white/5">
+                      <p className="text-xs text-gray-500 mb-1">Estimasi Waktu Sampai</p>
+                      <p className="text-2xl font-bold text-brand-gold">15 - 45 Menit</p>
+                  </div>
+              </div>
           </div>
       ) : (
           <div className="bg-[#1e1e1e] border border-white/5 rounded-xl p-6">

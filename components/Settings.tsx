@@ -1,12 +1,13 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye, Truck } from 'lucide-react';
 import { Role, Outlet, PrinterConnection, PrintingData, User, GalleryItem, LoyaltyProgram } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PrinterSettings from './PrinterSettings';
+import Distribution from './Distribution';
 import { updateUser } from '../services/auth';
 
 const PrintContent = React.forwardRef(({ printingData, paperSize }: { printingData: PrintingData | null; paperSize: string }, ref: React.Ref<HTMLDivElement>) => {
@@ -70,7 +71,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType, systemLogs, employeeFinancials, cattleOrders } = useStore();
   
   const canEditSettings = user?.username === 'rudiaf';
-  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs'>(canEditSettings ? 'general' : 'print');
+  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs' | 'distribution'>(canEditSettings ? 'general' : 'print');
   
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
@@ -649,6 +650,14 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
             </>
         )}
         <button 
+          onClick={() => setActiveTab('distribution')}
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
+            activeTab === 'distribution' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
+          }`}
+        >
+          <Truck size={16} /> Distribusi Armada
+        </button>
+        <button 
           onClick={() => setActiveTab('print')}
           className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
             activeTab === 'print' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
@@ -660,6 +669,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
 
       {/* Tab Content */}
       <div className="mt-6">
+        {activeTab === 'distribution' && <Distribution />}
         {activeTab === 'general' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* User Profile Section */}

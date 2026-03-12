@@ -19,19 +19,24 @@ const POS: React.FC<POSProps> = ({ user }) => {
   // ... existing state
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
-  const [selectedPayment, setSelectedPayment] = useState<'Tunai' | 'QRIS' | 'Debit' | 'Piutang'>('Tunai');
+  const [selectedPayment, setSelectedPayment] = useState<'Tunai' | 'QRIS' | 'Debit' | 'Piutang' | 'E-Wallet'>('Tunai');
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Modals for Payments
   const [showReceipt, setShowReceipt] = useState(false);
   const [showQrisModal, setShowQrisModal] = useState(false);
   const [showDebitModal, setShowDebitModal] = useState(false);
+  const [showEWalletModal, setShowEWalletModal] = useState(false);
   
   const [lastTransactionId, setLastTransactionId] = useState<string>('');
   
   // Debit State
   const [debitBank, setDebitBank] = useState('BCA');
   const [debitRef, setDebitRef] = useState('');
+
+  // E-Wallet State
+  const [eWalletProvider, setEWalletProvider] = useState<'Gopay' | 'OVO' | 'Dana' | 'ShopeePay'>('Gopay');
+  const [eWalletPhone, setEWalletPhone] = useState('');
 
   // New Customer & Discount State
   const [customerName, setCustomerName] = useState('Umum');
@@ -239,6 +244,8 @@ const POS: React.FC<POSProps> = ({ user }) => {
           setShowQrisModal(true);
       } else if (selectedPayment === 'Debit') {
           setShowDebitModal(true);
+      } else if (selectedPayment === 'E-Wallet') {
+          setShowEWalletModal(true);
       } else if (selectedPayment === 'Piutang') {
           const selectedDate = new Date(dueDate);
           const minDate = new Date(); minDate.setDate(minDate.getDate() + 2);
@@ -280,8 +287,8 @@ const POS: React.FC<POSProps> = ({ user }) => {
         customerType: customerType,
         outletId: user.outletId,
         dueDate: selectedPayment === 'Piutang' ? dueDate : undefined,
-        bankName: selectedPayment === 'Debit' ? debitBank : undefined,
-        bankRef: selectedPayment === 'Debit' ? debitRef : undefined,
+        bankName: selectedPayment === 'Debit' ? debitBank : (selectedPayment === 'E-Wallet' ? eWalletProvider : undefined),
+        bankRef: (selectedPayment === 'Debit' || selectedPayment === 'E-Wallet') ? (selectedPayment === 'Debit' ? debitRef : eWalletPhone) : undefined,
         cashier: user.name
     };
 
@@ -504,7 +511,7 @@ const POS: React.FC<POSProps> = ({ user }) => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-auto lg:h-full gap-4 relative">
+    <div className="flex flex-col lg:flex-row h-full w-full gap-4 relative overflow-hidden min-h-[600px]">
        {/* Toast Notification */}
        <div 
         className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full bg-[#1a1a1a] border border-green-500/30 shadow-2xl transition-all duration-300 transform ${
@@ -518,7 +525,7 @@ const POS: React.FC<POSProps> = ({ user }) => {
       </div>
 
       {/* LEFT SIDE: Product Catalog (Text Only Grid) */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0 order-2 lg:order-1">
+      <div className="flex-1 flex flex-col gap-3 min-w-0 order-2 lg:order-1 h-full overflow-hidden">
         
         {/* Search & Categories & Printer Connect */}
         <div className="bg-[#1e1e1e] p-2 rounded-xl border border-white/5 flex flex-col gap-2 shadow-sm shrink-0">
@@ -572,7 +579,7 @@ const POS: React.FC<POSProps> = ({ user }) => {
         </div>
 
         {/* Product Grid - MINIMALIST TEXT ONLY */}
-        <div className="flex-1 overflow-y-auto pr-1 min-h-0">
+        <div className="flex-1 overflow-y-auto pr-1 min-h-0 custom-scrollbar">
           {filteredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 pb-20">
               {filteredProducts.map(product => {
@@ -611,10 +618,10 @@ const POS: React.FC<POSProps> = ({ user }) => {
               })}
             </div>
           ) : (
-             <div className="h-64 flex flex-col items-center justify-center text-gray-500">
-               <Search size={32} className="opacity-40 mb-2" />
-               <p className="text-lg font-medium">Produk tidak ditemukan</p>
-               <button onClick={() => {setSearchTerm(''); setActiveCategory('Semua');}} className="mt-2 text-sm text-brand-red hover:underline">
+             <div className="h-full flex flex-col items-center justify-center text-gray-500 py-20">
+               <Search size={48} className="opacity-20 mb-4" />
+               <p className="text-lg font-medium opacity-60">Produk tidak ditemukan</p>
+               <button onClick={() => {setSearchTerm(''); setActiveCategory('Semua');}} className="mt-4 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-sm text-brand-red hover:bg-white/10 transition-all">
                    Reset Pencarian
                </button>
              </div>
@@ -883,12 +890,13 @@ const POS: React.FC<POSProps> = ({ user }) => {
                   { id: 'Tunai', icon: Banknote, label: 'Tunai' },
                   { id: 'QRIS', icon: QrCode, label: 'QRIS' },
                   { id: 'Debit', icon: CreditCard, label: 'Debit' },
+                  { id: 'E-Wallet', icon: Smartphone, label: 'E-Wallet' },
                   { id: 'Piutang', icon: CalendarClock, label: 'Tempo / DP' },
                ].map((method) => (
                  <button
                    key={method.id}
                    onClick={() => {
-                       const methodId = method.id as any;
+                       const methodId = method.id as 'Tunai' | 'QRIS' | 'Debit' | 'Piutang' | 'E-Wallet';
                        setSelectedPayment(methodId);
                        if (methodId === 'Piutang') {
                            const d = new Date();
@@ -1191,6 +1199,72 @@ const POS: React.FC<POSProps> = ({ user }) => {
          </div>
       )}
       
+      {/* E-Wallet Modal */}
+      {showEWalletModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+          <div className="bg-[#1e1e1e] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Smartphone className="text-brand-gold" /> Konfirmasi E-Wallet
+              </h3>
+              <button onClick={() => setShowEWalletModal(false)} className="text-gray-400 hover:text-white">
+                <XIcon size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+                {['Gopay', 'OVO', 'Dana', 'ShopeePay'].map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => setEWalletProvider(provider as 'Gopay' | 'OVO' | 'Dana' | 'ShopeePay')}
+                    className={`p-4 rounded-xl border transition-all text-center font-bold ${
+                      eWalletProvider === provider
+                        ? 'bg-brand-gold text-black border-brand-gold'
+                        : 'bg-black/30 text-gray-400 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    {provider}
+                  </button>
+                ))}
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Nomor HP / ID</label>
+                <input
+                  type="text"
+                  placeholder="08xx..."
+                  value={eWalletPhone}
+                  onChange={(e) => setEWalletPhone(e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white text-lg focus:border-brand-gold outline-none"
+                />
+              </div>
+
+              <div className="bg-black/40 p-4 rounded-xl border border-white/5">
+                <div className="flex justify-between text-gray-400 text-sm mb-1">
+                  <span>Total Tagihan</span>
+                  <span>Rp {total.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-white font-bold text-lg">
+                  <span>Total Bayar</span>
+                  <span className="text-brand-gold">Rp {total.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowEWalletModal(false);
+                  processTransaction();
+                }}
+                disabled={!eWalletPhone}
+                className="w-full py-4 bg-brand-gold text-black font-black rounded-xl shadow-lg shadow-brand-gold/20 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest"
+              >
+                Konfirmasi Pembayaran
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Distribution Module Section */}
       <div className="w-full mt-6 bg-[#1e1e1e] border border-white/5 rounded-xl p-6 order-3 lg:col-span-2">
           <Distribution />

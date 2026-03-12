@@ -113,7 +113,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Activity Only (Top Customers Removed) */}
+        {/* Recent Activity */}
         <div className="space-y-6">
             <div className="bg-[#1e1e1e] p-6 rounded-xl border border-white/5 overflow-hidden flex flex-col h-full">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -138,6 +138,68 @@ const Dashboard: React.FC = () => {
                 )}
             </div>
             </div>
+        </div>
+      </div>
+
+      {/* Profit & Loss Table */}
+      <div className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden">
+        <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <TrendingUp size={18} className="text-emerald-500" />
+            Laporan Rugi Laba (Global & Per Gerai)
+          </h3>
+          <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Update: {new Date().toLocaleDateString('id-ID')}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="bg-white/[0.02] text-gray-400 text-xs uppercase tracking-wider">
+                <th className="px-6 py-4 font-medium">Nama Gerai / Outlet</th>
+                <th className="px-6 py-4 font-medium text-right">Pendapatan</th>
+                <th className="px-6 py-4 font-medium text-right">Pengeluaran</th>
+                <th className="px-6 py-4 font-medium text-right">HPP (Est.)</th>
+                <th className="px-6 py-4 font-medium text-right">Laba Bersih</th>
+                <th className="px-6 py-4 font-medium text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {/* Global Row */}
+              <tr className="bg-brand-red/5 font-bold">
+                <td className="px-6 py-4 text-white">REKAPITULASI GLOBAL</td>
+                <td className="px-6 py-4 text-right text-emerald-400 font-mono">Rp {totalRevenue.toLocaleString()}</td>
+                <td className="px-6 py-4 text-right text-red-400 font-mono">Rp {totalExpenses.toLocaleString()}</td>
+                <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {(totalRevenue * 0.7).toLocaleString()}</td>
+                <td className="px-6 py-4 text-right text-brand-gold font-mono">Rp {(totalRevenue - totalExpenses - (totalRevenue * 0.7)).toLocaleString()}</td>
+                <td className="px-6 py-4 text-center">
+                  <span className="px-2 py-0.5 bg-brand-gold/20 text-brand-gold text-[10px] rounded uppercase">Global</span>
+                </td>
+              </tr>
+              {/* Per Outlet Rows */}
+              {useStore().outlets.map(outlet => {
+                const outletTransactions = safeTransactions.filter(t => t.outletId === outlet.id);
+                const outletExpenses = safeExpenses.filter(e => e.outletId === outlet.id);
+                const rev = outletTransactions.reduce((sum, t) => sum + (t.total || 0), 0);
+                const exp = outletExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+                const hpp = rev * 0.7; // Estimated COGS at 70%
+                const profit = rev - exp - hpp;
+                
+                return (
+                  <tr key={outlet.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-4 text-gray-300">{outlet.name}</td>
+                    <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {rev.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {exp.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-right text-gray-500 font-mono">Rp {hpp.toLocaleString()}</td>
+                    <td className={`px-6 py-4 text-right font-mono ${profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      Rp {profit.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`w-2 h-2 rounded-full mx-auto ${profit >= 0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
