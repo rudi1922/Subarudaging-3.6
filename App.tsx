@@ -19,6 +19,7 @@ import MarketAnalysis from './components/MarketAnalysis';
 import LoginModal from './components/LoginModal';
 import WelcomeModal from './components/WelcomeModal';
 import AIChatbot from './components/AIChatbot';
+import VehicleManager from './components/VehicleManager';
 import { User, Role, SystemLog } from './types';
 import { StoreProvider, useStore } from './StoreContext';
 import { verifySession, logoutUser } from './services/auth';
