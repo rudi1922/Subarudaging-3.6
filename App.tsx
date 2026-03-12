@@ -179,6 +179,8 @@ const AppContent = () => {
     switch (currentView) {
       case 'dashboard': 
         return <Dashboard />;
+      case 'vehicles':
+        return <VehicleManager />;
       case 'admin_dashboard':
         return <AdminDashboard />;
       case 'archive': return <Archive user={user!} />;
