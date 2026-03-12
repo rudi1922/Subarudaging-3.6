@@ -30,7 +30,9 @@ const AIChatbot: React.FC = () => {
     setIsTyping(true);
 
     try {
-      // 1. Ambil data produk terbaru dari Supabase
+      // --- LOGIKA BARU DIMULAI DISINI ---
+      
+      // 1. Ambil data produk dari Supabase agar AI tahu stok & harga asli
       const { data: produkTerbaru } = await supabase
         .from('products')
         .select('name, cost_price');
@@ -40,38 +42,35 @@ const AIChatbot: React.FC = () => {
         ? produkTerbaru.map(p => `- ${p.name}: Rp${p.cost_price?.toLocaleString('id-ID')}/kg`).join('\n')
         : "Data stok saat ini belum tersedia di database.";
 
-      // 3. Inisialisasi Google AI
+      // 3. Panggil Gemini AI
       const genAI = new GoogleGenAI(import.meta.env.VITE_GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash"
+        model: "gemini-1.5-flash" 
       });
 
-      // 4. Set instruksi sistem dan kirim pesan
-      const systemInstruction = `Anda adalah asisten virtual ahli untuk 'Subaru Daging Sapi'. Anda ramah, profesional, dan SINGKAT dalam menjawab.
+      // 4. Instruksi Sistem (Otak AI)
+      const systemInstruction = `Anda adalah asisten virtual ahli untuk 'Subaru Daging Sapi'.
       
-DATA STOK REAL-TIME SAAT INI:
+DATA STOK REAL-TIME DI DATABASE:
 ${infoStok}
 
-PENGETAHUAN PRODUK:
-- Karkas: Seluruh tubuh sapi (bersih jeroan).
-- Sirloin (Has Luar): Punggung belakang, gurih berlemak.
-- Tenderloin (Has Dalam): Paling empuk, sedikit lemak.
-- Lokasi: Gerai Tamin (Pusat), Gerai Way Halim, dan RPH.
-- Jam Operasional: 08:00 - 20:00.
+PENGETAHUAN:
+- Lokasi: Gerai Tamin, Way Halim, dan RPH.
+- Jam Buka: 08:00 - 20:00.
+- Jawablah dengan singkat, ramah, dan informatif.`;
 
-TUGAS ANDA:
-- Jawab pertanyaan berdasarkan data stok di atas. 
-- Jika stok tidak ada di daftar, sarankan pelanggan untuk menanyakan ketersediaan besok pagi.
-- Berikan tips memasak singkat jika ditanya jenis daging tertentu.`;
-
+      // 5. Jalankan Chat
       const result = await model.generateContent([systemInstruction, userMessage]);
       const response = await result.response;
       const botText = response.text();
 
       setMessages(prev => [...prev, { role: 'bot', text: botText }]);
+      
+      // --- LOGIKA BARU SELESAI DISINI ---
+
     } catch (error) {
       console.error('AI Chat Error:', error);
-      setMessages(prev => [...prev, { role: 'bot', text: "Maaf, Subaru AI sedang tidak bisa merespons. Pastikan API Key sudah terpasang di Vercel." }]);
+      setMessages(prev => [...prev, { role: 'bot', text: "Maaf, Subaru AI sedang gangguan. Silakan coba lagi." }]);
     } finally {
       setIsTyping(false);
     }
