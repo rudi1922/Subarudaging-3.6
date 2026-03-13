@@ -128,8 +128,49 @@ export const verifySession = async (): Promise<User | null> => {
 
   if (!token) return null;
 
-  // 1. Fallback for mock tokens
-  if (token && token.startsWith('mock-token-')) {
+  // 1. Handle Supabase Custom Tokens (sb-token-)
+  if (token.startsWith('sb-token-') && import.meta.env.VITE_SUPABASE_URL) {
+      try {
+          const userId = token.replace('sb-token-', '');
+          const { data: userDetails } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', userId)
+              .single();
+          
+          if (userDetails) {
+              // Normalize role (same logic as authenticateUser)
+              let normalizedRole = Role.CASHIER;
+              const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
+              
+              if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+              else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+              else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+              else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+              else if (dbRole === 'sales' || dbRole === 'sales marketing') normalizedRole = Role.SALES;
+              else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+              else if (dbRole === 'rph_admin' || dbRole === 'admin rph') normalizedRole = Role.RPH_ADMIN;
+              else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+
+              return {
+                  id: userDetails.id,
+                  name: userDetails.name,
+                  username: userDetails.username,
+                  role: normalizedRole,
+                  avatar: userDetails.avatar || undefined, 
+                  employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
+                  outletId: userDetails.outlet_id || userDetails.outletId || undefined,
+                  isApproved: true,
+                  referralCode: userDetails.referral_code || userDetails.referralCode || undefined
+              } as User;
+          }
+      } catch (error) {
+          console.error('Supabase custom token check failed:', error);
+      }
+  }
+
+  // 2. Fallback for mock tokens
+  if (token.startsWith('mock-token-')) {
       const userId = token.replace('mock-token-', '');
       const user = MOCK_USERS.find(u => u.id === userId);
       return user || null;
