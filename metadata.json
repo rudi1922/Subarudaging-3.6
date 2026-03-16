@@ -1,5 +1,5 @@
 {
-  "name": "Subaru Daging Sapi APP v3 8",
+  "name": "Subaru ERP & POS",
   "description": "Integrated ERP and POS system for Subaru Daging Sapi, featuring inventory management, finance, HR, and a public landing page.",
   "requestFramePermissions": [
     "geolocation",

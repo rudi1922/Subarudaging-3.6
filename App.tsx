@@ -20,6 +20,7 @@ import LoginModal from './components/LoginModal';
 import WelcomeModal from './components/WelcomeModal';
 import AIChatbot from './components/AIChatbot';
 import Accounting from './components/Accounting';
+import ToastContainer from './components/ToastContainer';
 import DirectorPrivate from './components/DirectorPrivate';
 import { User, Role, SystemLog } from './types';
 import { StoreProvider, useStore } from './StoreContext';
@@ -30,11 +31,15 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Inner component to access Context
 const AppContent = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [currentView, setCurrentView] = useState<string>(() => localStorage.getItem('app_current_view') || 'dashboard');
+
+  useEffect(() => {
+    localStorage.setItem('app_current_view', currentView);
+  }, [currentView]);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const { addSystemLog, customerMode, setCustomerMode } = useStore();
+  const { addSystemLog, customerMode, setCustomerMode, isLoading: storeLoading } = useStore();
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -166,12 +171,13 @@ const AppContent = () => {
     setCurrentView('dashboard');
   };
 
-  if (isLoading) {
+  if (isLoading || storeLoading) {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-[#1a1a1a] text-white">
             <div className="w-12 h-12 border-4 border-brand-red border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-lg font-bold">Memuat Aplikasi...</p>
             <p className="text-xs text-gray-500 mt-2">Versi 1.1.0 (Referral System Active)</p>
+            {storeLoading && <p className="text-[10px] text-gray-600 mt-1">Sinkronisasi Data Cloud...</p>}
         </div>
       );
   }
@@ -234,6 +240,7 @@ const AppContent = () => {
           }} 
         />
         {customerMode && <AIChatbot />}
+        <ToastContainer />
       </>
     );
   }
@@ -246,6 +253,7 @@ const AppContent = () => {
       onNavigate={setCurrentView}
     >
       {renderView()}
+      <ToastContainer />
     </AdminLayout>
   );
 }

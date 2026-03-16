@@ -489,3 +489,10 @@ export interface ReceiptData {
     earnings?: { label: string; value: number }[];
     deductions?: { label: string; value: number }[];
 }
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  duration?: number;
+}

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { calculateDistance } from './utils/location';
 import { Product, Transaction, Receivable, CartItem, Expense, EmployeeFinancial, Employee, CattleOrder, Outlet, Notification, Role, VisitRecord, Lead, SystemLog, CattlePrice, AppSettings, PrinterConfig, PrinterType, PrinterConnection, Customer, User, Delivery, Vehicle, MarketNote, PricePoint, MarketSurvey, WeighingLog, AttendanceRecord, Supplier, DebtPayment, CattleType, RolePermissions, GalleryItem, LoyaltyProgram, Commission, Asset, PrivateTransaction } from './types';
 
 interface StoreContextType {
@@ -44,6 +45,8 @@ interface StoreContextType {
   setNavigationParams: React.Dispatch<React.SetStateAction<{ view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null>>;
   galleryItems: GalleryItem[];
   loyaltyPrograms: LoyaltyProgram[];
+  toasts: Toast[];
+  showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
   addGalleryItem: (item: GalleryItem) => void;
   updateGalleryItem: (item: GalleryItem) => void;
   deleteGalleryItem: (id: string) => void;
@@ -99,47 +102,80 @@ interface StoreContextType {
   privateTransactions: PrivateTransaction[];
   addPrivateTransaction: (tx: PrivateTransaction) => void;
   deletePrivateTransaction: (id: string) => void;
+  isLoading: boolean;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+const usePersistentState = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(() => {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(`Failed to parse localStorage for ${key}:`, e);
+      }
+    }
+    return initialValue;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(state));
+  }, [key, state]);
+
+  return [state, setState];
+};
+
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const generateTimestampId = () => Date.now().toString();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [receivables, setReceivables] = useState<Receivable[]>([]);
-  const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [employeeFinancials, setEmployeeFinancials] = useState<EmployeeFinancial[]>([]);
-  const [cattleOrders, setCattleOrders] = useState<CattleOrder[]>([]);
-  const [outlets, setOutlets] = useState<Outlet[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [visitRecords, setVisitRecords] = useState<VisitRecord[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
-  const [cattlePrices, setCattlePrices] = useState<CattlePrice[]>([]);
-  const [cattleTypes, setCattleTypes] = useState<CattleType[]>([]);
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
-  const [loyaltyPrograms, setLoyaltyPrograms] = useState<LoyaltyProgram[]>([]);
-  const [navigationParams, setNavigationParams] = useState<{ view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [marketNotes, setMarketNotes] = useState<MarketNote[]>([]);
-  const [pricePoints, setPricePoints] = useState<PricePoint[]>([]);
-  const [marketSurveys, setMarketSurveys] = useState<MarketSurvey[]>([]);
-  const [weighingLogs, setWeighingLogs] = useState<WeighingLog[]>([]);
-  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [commissions, setCommissions] = useState<Commission[]>([]);
-  const [collectionTarget, setCollectionTarget] = useState<number>(10000000); // Default 10jt
-  const [customerMode, setCustomerMode] = useState<boolean>(false);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [privateTransactions, setPrivateTransactions] = useState<PrivateTransaction[]>([]);
 
-  const [appSettings, setAppSettings] = useState<AppSettings>({
+  const [products, setProducts] = usePersistentState<Product[]>('app_products', []);
+  const [transactions, setTransactions] = usePersistentState<Transaction[]>('app_transactions', []);
+  const [receivables, setReceivables] = usePersistentState<Receivable[]>('app_receivables', []);
+  const [debtPayments, setDebtPayments] = usePersistentState<DebtPayment[]>('app_debt_payments', []);
+  const [expenses, setExpenses] = usePersistentState<Expense[]>('app_expenses', []);
+  const [employees, setEmployees] = usePersistentState<Employee[]>('app_employees', []);
+  const [employeeFinancials, setEmployeeFinancials] = usePersistentState<EmployeeFinancial[]>('app_employee_financials', []);
+  const [cattleOrders, setCattleOrders] = usePersistentState<CattleOrder[]>('app_cattle_orders', []);
+  const [outlets, setOutlets] = usePersistentState<Outlet[]>('app_outlets', []);
+  const [notifications, setNotifications] = usePersistentState<Notification[]>('app_notifications', []);
+  const [visitRecords, setVisitRecords] = usePersistentState<VisitRecord[]>('app_visit_records', []);
+  const [leads, setLeads] = usePersistentState<Lead[]>('app_leads', []);
+  const [systemLogs, setSystemLogs] = usePersistentState<SystemLog[]>('app_system_logs', []);
+  const [cattlePrices, setCattlePrices] = usePersistentState<CattlePrice[]>('app_cattle_prices', []);
+  const [cattleTypes, setCattleTypes] = usePersistentState<CattleType[]>('app_cattle_types', []);
+  const [galleryItems, setGalleryItems] = usePersistentState<GalleryItem[]>('app_gallery_items', []);
+  const [loyaltyPrograms, setLoyaltyPrograms] = usePersistentState<LoyaltyProgram[]>('app_loyalty_programs', []);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info', duration = 3000) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    const newToast: Toast = { id, message, type, duration };
+    setToasts(prev => [...prev, newToast]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+  };
+  const [navigationParams, setNavigationParams] = usePersistentState<{ view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null>('app_nav_params', null);
+  const [customers, setCustomers] = usePersistentState<Customer[]>('app_customers', []);
+  const [users, setUsers] = usePersistentState<User[]>('app_users', []);
+  const [deliveries, setDeliveries] = usePersistentState<Delivery[]>('app_deliveries', []);
+  const [vehicles, setVehicles] = usePersistentState<Vehicle[]>('app_vehicles', []);
+  const [marketNotes, setMarketNotes] = usePersistentState<MarketNote[]>('app_market_notes', []);
+  const [pricePoints, setPricePoints] = usePersistentState<PricePoint[]>('app_price_points', []);
+  const [marketSurveys, setMarketSurveys] = usePersistentState<MarketSurvey[]>('app_market_surveys', []);
+  const [weighingLogs, setWeighingLogs] = usePersistentState<WeighingLog[]>('app_weighing_logs', []);
+  const [attendanceHistory, setAttendanceHistory] = usePersistentState<AttendanceRecord[]>('app_attendance_history', []);
+  const [suppliers, setSuppliers] = usePersistentState<Supplier[]>('app_suppliers', []);
+  const [commissions, setCommissions] = usePersistentState<Commission[]>('app_commissions', []);
+  const [collectionTarget, setCollectionTarget] = usePersistentState<number>('app_collection_target', 10000000); // Default 10jt
+  const [customerMode, setCustomerMode] = usePersistentState<boolean>('app_customer_mode', false);
+  const [assets, setAssets] = usePersistentState<Asset[]>('app_assets', []);
+  const [privateTransactions, setPrivateTransactions] = usePersistentState<PrivateTransaction[]>('app_private_transactions', []);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [appSettings, setAppSettings] = usePersistentState<AppSettings>('app_settings', {
       allowNegativeStock: false,
       requireLocationForLogin: true,
       attendanceRadius: 100, // Default 100m
@@ -156,7 +192,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=80&w=1200'
       ]
   });
-  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>({
+  const [printerConfig, setPrinterConfig] = usePersistentState<PrinterConfig>('app_printer_config', {
       type: PrinterType.THERMAL_58,
       connection: PrinterConnection.SYSTEM,
       autoPrint: false
@@ -234,7 +270,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     const fetchData = async () => {
         // Only fetch if Supabase is configured and not already fetching
-        if (!isSupabaseConfigured || isFetchingRef.current) return;
+        if (!isSupabaseConfigured) {
+            setIsLoading(false);
+            return;
+        }
+        if (isFetchingRef.current) return;
         isFetchingRef.current = true;
 
         const fetchTable = async <T,>(table: string, setter: (data: T[]) => void, transform?: (data: Record<string, unknown>[]) => T[]) => {
@@ -432,6 +472,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 }
             })
         ]);
+        setIsLoading(false);
     };
 
     fetchData();
@@ -535,7 +576,35 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             supabase.removeChannel(commissionSubscription);
         };
     }
-  }, []);
+  }, [
+    isSupabaseConfigured,
+    setAppSettings,
+    setAttendanceHistory,
+    setCattleOrders,
+    setCattlePrices,
+    setCattleTypes,
+    setCommissions,
+    setCustomers,
+    setDebtPayments,
+    setDeliveries,
+    setEmployeeFinancials,
+    setEmployees,
+    setExpenses,
+    setGalleryItems,
+    setLeads,
+    setLoyaltyPrograms,
+    setMarketNotes,
+    setMarketSurveys,
+    setOutlets,
+    setPricePoints,
+    setProducts,
+    setSystemLogs,
+    setTransactions,
+    setUsers,
+    setVehicles,
+    setVisitRecords,
+    setWeighingLogs
+  ]);
 
   const approveUser = async (id: string) => {
     try {
@@ -581,7 +650,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               status: delivery.status,
               estimated_arrival: delivery.estimatedArrival,
               actual_arrival: delivery.actualArrival,
-              notes: delivery.notes
+              notes: delivery.notes,
+              proof_image: delivery.proofImage
           });
       }
   };
@@ -596,7 +666,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               status: delivery.status,
               estimated_arrival: delivery.estimatedArrival,
               actual_arrival: delivery.actualArrival,
-              notes: delivery.notes
+              notes: delivery.notes,
+              proof_image: delivery.proofImage
           }).eq('id', delivery.id);
       }
   };
@@ -795,7 +866,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {
           console.error("Failed to delete user:", error);
-          alert("Gagal menghapus user. Silakan coba lagi.");
+          showToast("Gagal menghapus user. Silakan coba lagi.", "error");
       }
   };
 
@@ -815,7 +886,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const distance = calculateDistance(lat, lng, outlet.coordinates.lat, outlet.coordinates.lng);
           
           if (distance > radius) {
-              alert(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(distance)}m. Maksimal: ${radius}m.`);
+              showToast(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(distance)}m. Maksimal: ${radius}m.`, "error");
               return; // Stop check-in
           }
       }
@@ -1559,12 +1630,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setNavigationParams,
         galleryItems,
         loyaltyPrograms,
+        toasts,
+        showToast,
         addGalleryItem,
         updateGalleryItem,
         deleteGalleryItem,
         addLoyaltyProgram,
         updateLoyaltyProgram,
-        deleteLoyaltyProgram
+        deleteLoyaltyProgram,
+        isLoading
     }}>
       {children}
     </StoreContext.Provider>
