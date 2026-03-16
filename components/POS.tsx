@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Search, ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Minus, Plus, X as XIcon, Check, ArrowRight, Printer, Tag, Percent, CalendarClock, Download, Smartphone, Users, Bluetooth, AlertTriangle, BadgeDollarSign, Wallet, CheckCircle2, Truck } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Minus, Plus, X as XIcon, ArrowRight, Printer, Tag, Percent, CalendarClock, Download, Smartphone, Users, Bluetooth, AlertTriangle, BadgeDollarSign, Wallet, CheckCircle2, Truck } from 'lucide-react';
 import { CartItem, Product, ProductCategory, User as UserType, Receivable, PrinterConnection, Customer } from '../types';
 import { useStore } from '../StoreContext';
 import { jsPDF } from "jspdf";
@@ -14,7 +14,7 @@ interface POSProps {
 const generateTransactionId = () => `INV-${Math.floor(1000 + Math.random() * 9000)}`;
 
 const POS: React.FC<POSProps> = ({ user }) => {
-  const { products, addTransaction, outlets, receivables, payReceivable, printerConfig, customers, addSystemLog } = useStore();
+  const { products, addTransaction, outlets, receivables, payReceivable, printerConfig, customers, addSystemLog, showToast } = useStore();
   const [cart, setCart] = useState<CartItem[]>([]);
   // ... existing state
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,9 +62,6 @@ const POS: React.FC<POSProps> = ({ user }) => {
   const [currentCustomerTotalDebt, setCurrentCustomerTotalDebt] = useState(0); // New State for Total Debt Display
   const [paymentAmount, setPaymentAmount] = useState<{ [id: string]: number }>({}); 
 
-  // Toast state
-  const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
-  const toastTimeoutRef = useRef<number | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   // Identify Current Outlet
@@ -78,19 +75,9 @@ const POS: React.FC<POSProps> = ({ user }) => {
   // Initialize Printer Service
   const printerService = new PrinterService(printerConfig);
 
-  const showToast = (message: string) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    setToast({ message, show: true });
-    toastTimeoutRef.current = window.setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }));
-    }, 2500);
-  };
-
   const handleConnectPrinter = () => {
       // Redirect to settings for full config
-      alert("Silakan atur koneksi printer di menu Settings > Printer Config");
+      showToast("Silakan atur koneksi printer di menu Settings > Printer Config", "info");
   };
 
   const addToCart = (product: Product) => {
@@ -190,27 +177,32 @@ const POS: React.FC<POSProps> = ({ user }) => {
       
       const typeText = isFullPayment ? "PELUNASAN" : "PEMBAYARAN CICILAN";
       
-      if(confirm(`Konfirmasi ${typeText} sebesar Rp ${amountToPay.toLocaleString()}?`)) {
-          payReceivable(debtId, amountToPay);
-          showToast(isFullPayment ? "Hutang LUNAS!" : "Pembayaran cicilan berhasil");
-          
-          // Refresh list locally
-          const updatedDebts = customerDebts.map(d => {
-              if (d.id === debtId) {
-                  const remaining = d.amount - amountToPay;
-                  return remaining <= 0 ? null : { ...d, amount: remaining };
-              }
-              return d;
-          }).filter(Boolean) as Receivable[];
-          
-          setCustomerDebts(updatedDebts);
-          // Recalculate total debt
-          const newTotal = updatedDebts.reduce((sum, r) => sum + r.amount, 0);
-          setCurrentCustomerTotalDebt(newTotal);
-          
-          // Clear input
-          setPaymentAmount(prev => ({...prev, [debtId]: 0}));
-      }
+      setConfirmData({
+          isOpen: true,
+          title: 'Konfirmasi Pembayaran Hutang',
+          message: `Konfirmasi ${typeText} sebesar Rp ${amountToPay.toLocaleString()}?`,
+          onConfirm: () => {
+              payReceivable(debtId, amountToPay);
+              showToast(isFullPayment ? "Hutang LUNAS!" : "Pembayaran cicilan berhasil", 'success');
+              
+              // Refresh list locally
+              const updatedDebts = customerDebts.map(d => {
+                  if (d.id === debtId) {
+                      const remaining = d.amount - amountToPay;
+                      return remaining <= 0 ? null : { ...d, amount: remaining };
+                  }
+                  return d;
+              }).filter(Boolean) as Receivable[];
+              
+              setCustomerDebts(updatedDebts);
+              // Recalculate total debt
+              const newTotal = updatedDebts.reduce((sum, r) => sum + r.amount, 0);
+              setCurrentCustomerTotalDebt(newTotal);
+              
+              // Clear input
+              setPaymentAmount(prev => ({...prev, [debtId]: 0}));
+          }
+      });
   };
 
   const handleInputChange = (id: string, val: string) => {
@@ -334,7 +326,14 @@ const POS: React.FC<POSProps> = ({ user }) => {
 
     // Auto Print Check
     if (printerConfig.autoPrint) {
-        printerService.print(transactionData);
+        printerService.print(transactionData).catch(err => {
+            console.error('Auto print failed:', err);
+            if (err.message === 'PRINTER_NOT_CONFIGURED') {
+                showToast('Printer belum dikonfigurasi', 'info');
+            } else {
+                showToast('Gagal cetak otomatis', 'error');
+            }
+        });
     }
 
     if (selectedPayment === 'Piutang' || (customerType === 'Tetap' && customerPhone)) {
@@ -471,7 +470,7 @@ const POS: React.FC<POSProps> = ({ user }) => {
       showToast('Transaksi Selesai');
   }
 
-  const handlePrintBT = () => {
+  const handlePrintBT = async () => {
       // Use lastTransactionData if available to ensure consistency
       const dataToPrint = {
           transactionId: lastTransactionId,
@@ -480,7 +479,23 @@ const POS: React.FC<POSProps> = ({ user }) => {
           items: cart
       };
       
-      printerService.print(dataToPrint);
+      try {
+        await printerService.print(dataToPrint);
+        showToast('Cetak Berhasil', 'success');
+      } catch (err: any) {
+        if (err.message === 'PRINTER_NOT_CONFIGURED') {
+            setConfirmData({
+                title: 'Printer Belum Siap',
+                message: 'Printer belum dikonfigurasi. Lanjutkan menggunakan dialog cetak sistem (Browser)?',
+                onConfirm: () => {
+                    setConfirmData(null);
+                    window.print();
+                }
+            });
+        } else {
+            showToast(err.message || 'Gagal mencetak', 'error');
+        }
+      }
   }
 
   const handlePrintSystem = useReactToPrint({
@@ -512,18 +527,6 @@ const POS: React.FC<POSProps> = ({ user }) => {
 
   return (
     <div className="flex flex-col lg:flex-row h-full w-full gap-4 relative overflow-hidden min-h-[600px]">
-       {/* Toast Notification */}
-       <div 
-        className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full bg-[#1a1a1a] border border-green-500/30 shadow-2xl transition-all duration-300 transform ${
-          toast.show ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'
-        }`}
-      >
-        <div className="bg-green-600 rounded-full p-1 text-white">
-          <Check size={14} strokeWidth={3} />
-        </div>
-        <span className="text-white text-sm font-medium tracking-wide">{toast.message}</span>
-      </div>
-
       {/* LEFT SIDE: Product Catalog (Text Only Grid) */}
       <div className="flex-1 flex flex-col gap-3 min-w-0 order-2 lg:order-1 h-full overflow-hidden">
         

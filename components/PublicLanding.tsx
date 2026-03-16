@@ -19,7 +19,7 @@ interface PublicLandingProps {
 }
 
 const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelangganClick }) => {
-  const { employees, checkInEmployee, addLead, addSystemLog, appSettings, products, customerMode, setCustomerMode, galleryItems } = useStore();
+  const { employees, checkInEmployee, addLead, addSystemLog, appSettings, products, customerMode, setCustomerMode, galleryItems, showToast } = useStore();
   const [activeModal, setActiveModal] = useState<'order' | 'sales' | 'offer' | 'success' | 'checkin' | 'referral' | 'privacy' | 'terms' | 'career' | 'loyalty' | 'article' | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +53,7 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
   
   const handleCheckInSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployeeId) return alert('Pilih nama Anda');
+    if (!selectedEmployeeId) return showToast('Pilih nama Anda', 'error');
     
     const emp = (employees || []).find(e => e.id === selectedEmployeeId);
     if (!emp) return;
@@ -83,7 +83,7 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
             }
 
             if (!isWithinRange) {
-                alert(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(minDistance)}m. Maksimal: ${MAX_RADIUS_METERS}m.`);
+                showToast(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(minDistance)}m. Maksimal: ${MAX_RADIUS_METERS}m.`, 'error');
                 setIsSubmitting(false);
                 return;
             }
@@ -110,14 +110,13 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
 
             setIsSubmitting(false);
             setActiveModal('success');
-            // alert(`Absensi ${checkInType} Berhasil! Lokasi: ${nearestLocation} (${Math.round(minDistance)}m)`);
 
         }, () => {
-            alert("Gagal mendapatkan lokasi GPS. Pastikan GPS aktif.");
+            showToast("Gagal mendapatkan lokasi GPS. Pastikan GPS aktif.", 'error');
             setIsSubmitting(false);
         });
     } else {
-        alert("Browser tidak mendukung Geolocation.");
+        showToast("Browser tidak mendukung Geolocation.", 'error');
         setIsSubmitting(false);
     }
   };

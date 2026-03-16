@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye, Truck } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye, Truck, X as XIcon } from 'lucide-react';
 import { Role, Outlet, PrinterConnection, PrintingData, User, GalleryItem, LoyaltyProgram } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
@@ -9,6 +9,7 @@ import autoTable from "jspdf-autotable";
 import PrinterSettings from './PrinterSettings';
 import Distribution from './Distribution';
 import { updateUser } from '../services/auth';
+import ConfirmModal from './ConfirmModal';
 
 const PrintContent = React.forwardRef(({ printingData, paperSize }: { printingData: PrintingData | null; paperSize: string }, ref: React.Ref<HTMLDivElement>) => {
     if (!printingData) return null;
@@ -68,7 +69,7 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ user }) => {
-  const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType, systemLogs, employeeFinancials, cattleOrders } = useStore();
+  const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType, systemLogs, employeeFinancials, cattleOrders, showToast } = useStore();
   
   const canEditSettings = user?.username === 'rudiaf';
   const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs' | 'distribution'>(canEditSettings ? 'general' : 'print');
@@ -145,125 +146,143 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   };
 
     const handleBackupDatabase = () => {
-        if (confirm('Apakah Anda yakin ingin melakukan Backup Database sekarang? File backup akan diunduh secara otomatis.')) {
-            const data = {
-                settings: appSettings,
-                outlets,
-                users,
-                products,
-                transactions,
-                receivables,
-                expenses,
-                employees,
-                attendance,
-                systemLogs,
-                timestamp: new Date().toISOString()
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `backup_subaru_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            addSystemLog({
-                id: `log-${Date.now()}`,
-                userId: user.id,
-                userName: user.name,
-                role: user.role,
-                action: 'SYSTEM',
-                details: 'Backup Database Berhasil',
-                timestamp: new Date().toISOString(),
-                ip: '127.0.0.1',
-                location: 'Settings',
-                device: 'Web'
-            });
-            
-            alert('Backup Database Berhasil!');
-        }
+        showConfirm(
+            'Backup Database',
+            'Apakah Anda yakin ingin melakukan Backup Database sekarang? File backup akan diunduh secara otomatis.',
+            () => {
+                const data = {
+                    settings: appSettings,
+                    outlets,
+                    users,
+                    products,
+                    transactions,
+                    receivables,
+                    expenses,
+                    employees,
+                    attendance,
+                    systemLogs,
+                    timestamp: new Date().toISOString()
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup_subaru_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                addSystemLog({
+                    id: `log-${Date.now()}`,
+                    userId: user.id,
+                    userName: user.name,
+                    role: user.role,
+                    action: 'SYSTEM',
+                    details: 'Backup Database Berhasil',
+                    timestamp: new Date().toISOString(),
+                    ip: '127.0.0.1',
+                    location: 'Settings',
+                    device: 'Web'
+                });
+                
+                showToast('Backup Database Berhasil!', 'success');
+            }
+        );
     };
 
     const handleDeleteOldLogs = () => {
-        if (confirm('Apakah Anda yakin ingin menghapus log sistem yang sudah lebih dari 30 hari? Tindakan ini tidak dapat dibatalkan.')) {
-            // Logic to delete old logs (mocked for now, but should call store function)
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            
-            // In a real app, we'd call a store function to filter systemLogs
-            // For now, we'll just show a success message
-            addSystemLog({
-                id: `log-${Date.now()}`,
-                userId: user.id,
-                userName: user.name,
-                role: user.role,
-                action: 'SYSTEM',
-                details: 'Pembersihan Log Lama Berhasil',
-                timestamp: new Date().toISOString(),
-                ip: '127.0.0.1',
-                location: 'Settings',
-                device: 'Web'
-            });
-            
-            alert('Log lama berhasil dibersihkan!');
-        }
+        showConfirm(
+            'Bersihkan Log',
+            'Apakah Anda yakin ingin menghapus log sistem yang sudah lebih dari 30 hari? Tindakan ini tidak dapat dibatalkan.',
+            () => {
+                // Logic to delete old logs (mocked for now, but should call store function)
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                // In a real app, we'd call a store function to filter systemLogs
+                // For now, we'll just show a success message
+                addSystemLog({
+                    id: `log-${Date.now()}`,
+                    userId: user.id,
+                    userName: user.name,
+                    role: user.role,
+                    action: 'SYSTEM',
+                    details: 'Pembersihan Log Lama Berhasil',
+                    timestamp: new Date().toISOString(),
+                    ip: '127.0.0.1',
+                    location: 'Settings',
+                    device: 'Web'
+                });
+                
+                showToast('Log lama berhasil dibersihkan!', 'success');
+            }
+        );
     };
 
     const handleSaveGalleryItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!galleryForm.title || !galleryForm.imageUrl) return;
     
-    if (!confirm(`Apakah Anda yakin ingin ${editingGalleryItem ? 'mengupdate' : 'menambah'} item gallery ini?`)) return;
-    
-    const item: GalleryItem = {
-        id: editingGalleryItem?.id || `G-${Date.now()}`,
-        title: galleryForm.title!,
-        subtitle: galleryForm.subtitle || '',
-        imageUrl: galleryForm.imageUrl!,
-        content: galleryForm.content || '',
-        date: editingGalleryItem?.date || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        category: galleryForm.category || 'Kegiatan'
-    };
+    showConfirm(
+        editingGalleryItem ? 'Update Item' : 'Tambah Item',
+        `Apakah Anda yakin ingin ${editingGalleryItem ? 'mengupdate' : 'menambah'} item gallery ini?`,
+        () => {
+            const item: GalleryItem = {
+                id: editingGalleryItem?.id || `G-${Date.now()}`,
+                title: galleryForm.title!,
+                subtitle: galleryForm.subtitle || '',
+                imageUrl: galleryForm.imageUrl!,
+                content: galleryForm.content || '',
+                date: editingGalleryItem?.date || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                category: galleryForm.category || 'Kegiatan'
+            };
 
-    if (editingGalleryItem) {
-        updateGalleryItem(item);
-    } else {
-        addGalleryItem(item);
-    }
-    
-    setIsGalleryModalOpen(false);
-    setEditingGalleryItem(null);
-    setGalleryForm({ title: '', subtitle: '', imageUrl: '', content: '', category: 'Kegiatan' });
+            if (editingGalleryItem) {
+                updateGalleryItem(item);
+            } else {
+                addGalleryItem(item);
+            }
+            
+            setIsGalleryModalOpen(false);
+            setEditingGalleryItem(null);
+            setGalleryForm({ title: '', subtitle: '', imageUrl: '', content: '', category: 'Kegiatan' });
+            showToast(`Gallery item berhasil ${editingGalleryItem ? 'diupdate' : 'ditambah'}`, 'success');
+        }
+    );
   };
 
-  const handleSaveLoyaltyProgram = (e: React.FormEvent) => {
+    const handleSaveLoyaltyProgram = (e: React.FormEvent) => {
     e.preventDefault();
     if (!loyaltyForm.title || !loyaltyForm.reward) return;
 
-    if (!confirm(`Apakah Anda yakin ingin ${editingLoyaltyProgram ? 'mengupdate' : 'menambah'} program loyalty ini?`)) return;
+    showConfirm(
+        editingLoyaltyProgram ? 'Update Program' : 'Tambah Program',
+        `Apakah Anda yakin ingin ${editingLoyaltyProgram ? 'mengupdate' : 'menambah'} program loyalty ini?`,
+        () => {
+            const program: LoyaltyProgram = {
+                id: editingLoyaltyProgram?.id || `LP-${Date.now()}`,
+                title: loyaltyForm.title!,
+                description: loyaltyForm.description || '',
+                targetKg: loyaltyForm.targetKg || 300,
+                durationMonths: loyaltyForm.durationMonths || 6,
+                reward: loyaltyForm.reward!,
+                isActive: loyaltyForm.isActive !== undefined ? loyaltyForm.isActive : true
+            };
 
-    const program: LoyaltyProgram = {
-        id: editingLoyaltyProgram?.id || `LP-${Date.now()}`,
-        title: loyaltyForm.title!,
-        description: loyaltyForm.description || '',
-        targetKg: loyaltyForm.targetKg || 300,
-        durationMonths: loyaltyForm.durationMonths || 6,
-        reward: loyaltyForm.reward!,
-        isActive: loyaltyForm.isActive !== undefined ? loyaltyForm.isActive : true
-    };
+            if (editingLoyaltyProgram) {
+                updateLoyaltyProgram(program.id, program);
+            } else {
+                addLoyaltyProgram(program);
+            }
 
-    if (editingLoyaltyProgram) {
-        updateLoyaltyProgram(program);
-    } else {
-        addLoyaltyProgram(program);
-    }
-
-    setIsLoyaltyModalOpen(false);
-    setEditingLoyaltyProgram(null);
-    setLoyaltyForm({ title: '', description: '', targetKg: 300, durationMonths: 6, reward: '', isActive: true });
+            setIsLoyaltyModalOpen(false);
+            setEditingLoyaltyProgram(null);
+            setLoyaltyForm({ title: '', description: '', targetKg: 300, durationMonths: 6, reward: '', isActive: true });
+            showToast(`Program loyalty berhasil ${editingLoyaltyProgram ? 'diupdate' : 'ditambah'}`, 'success');
+        }
+    );
   };
 
   // --- HISTORY LOG DATA ---
@@ -392,78 +411,92 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   };
 
   const handleUpdatePermissions = async () => {
-        if (!confirm('Apakah Anda yakin ingin mengupdate hak akses (RBAC) untuk semua role?')) return;
-        setIsSaving(true);
-        try {
-            await updateRolePermissions(permissions);
-            
-            addSystemLog({
-                id: `log-${Date.now()}`,
-                userId: user.id,
-                userName: user.name,
-                role: user.role,
-                action: 'SETTINGS',
-                details: `Update Permission RBAC Berhasil`,
-                timestamp: new Date().toISOString(),
-                ip: '127.0.0.1',
-                location: 'Settings',
-                device: 'Web'
-            });
-            
-            alert('Permissions updated successfully!');
-        } catch (error) {
-            console.error('Error updating permissions:', error);
-            alert('Gagal mengupdate permissions. Silakan coba lagi.');
-        } finally {
-            setIsSaving(false);
-        }
+        showConfirm(
+            'Update Hak Akses',
+            'Apakah Anda yakin ingin mengupdate hak akses (RBAC) untuk semua role?',
+            async () => {
+                setIsSaving(true);
+                try {
+                    await updateRolePermissions(permissions);
+                    
+                    addSystemLog({
+                        id: `log-${Date.now()}`,
+                        userId: user.id,
+                        userName: user.name,
+                        role: user.role,
+                        action: 'SETTINGS',
+                        details: `Update Permission RBAC Berhasil`,
+                        timestamp: new Date().toISOString(),
+                        ip: '127.0.0.1',
+                        location: 'Settings',
+                        device: 'Web'
+                    });
+                    
+                    showToast('Permissions updated successfully!', 'success');
+                } catch (error) {
+                    console.error('Error updating permissions:', error);
+                    showToast('Gagal mengupdate permissions. Silakan coba lagi.', 'error');
+                } finally {
+                    setIsSaving(false);
+                }
+            }
+        );
     };
 
   const handleAddOutlet = (e: React.FormEvent) => {
       e.preventDefault();
       if(!newOutlet.name) return;
-      if (!confirm('Apakah Anda yakin ingin menambahkan gerai baru ini?')) return;
-      addOutlet({
-          id: `OUTLET-${new Date().getTime()}`,
-          name: newOutlet.name!,
-          address: newOutlet.address || '',
-          phone: newOutlet.phone || '',
-          radius: newOutlet.radius || 100
-      });
-      setNewOutlet({ name: '', address: '', phone: '', radius: 100 });
-      alert("Gerai baru berhasil ditambahkan!");
+      showConfirm(
+          'Tambah Gerai',
+          'Apakah Anda yakin ingin menambahkan gerai baru ini?',
+          () => {
+              addOutlet({
+                  id: `OUTLET-${new Date().getTime()}`,
+                  name: newOutlet.name!,
+                  address: newOutlet.address || '',
+                  phone: newOutlet.phone || '',
+                  radius: newOutlet.radius || 100
+              });
+              setNewOutlet({ name: '', address: '', phone: '', radius: 100 });
+              showToast("Gerai baru berhasil ditambahkan!", 'success');
+          }
+      );
   };
 
   const handleChangePassword = async () => {
       if (newPassword !== confirmPassword) {
-          alert("Password tidak cocok!");
+          showToast("Password tidak cocok!", 'error');
           return;
       }
       if (newPassword.length < 6) {
-          alert("Password minimal 6 karakter!");
+          showToast("Password minimal 6 karakter!", 'error');
           return;
       }
       
-      if (!confirm('Apakah Anda yakin ingin mengubah password Anda? Anda akan diminta untuk login ulang.')) return;
-      
-      const success = await updateUser(user.id, { password: newPassword });
-      if (success) {
-          alert("Password berhasil diubah! Silakan login ulang.");
-          setIsPasswordModalOpen(false);
-          setNewPassword('');
-          setConfirmPassword('');
-          // Optional: Force logout
-          // window.location.reload(); 
-      } else {
-          alert("Gagal mengubah password. Coba lagi.");
-      }
+      showConfirm(
+          'Ubah Password',
+          'Apakah Anda yakin ingin mengubah password Anda? Anda akan diminta untuk login ulang.',
+          async () => {
+              const success = await updateUser(user.id, { password: newPassword });
+              if (success) {
+                  showToast("Password berhasil diubah! Silakan login ulang.", 'success');
+                  setIsPasswordModalOpen(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  // Optional: Force logout
+                  // window.location.reload(); 
+              } else {
+                  showToast("Gagal mengubah password. Coba lagi.", 'error');
+              }
+          }
+      );
   };
 
 
     const handleSaveGeneralSettings = () => {
         showConfirm('Simpan Pengaturan', 'Simpan perubahan pengaturan umum?', () => {
             updateAppSettings(appSettings);
-            alert('Pengaturan umum berhasil disimpan!');
+            showToast('Pengaturan umum berhasil disimpan!', 'success');
         });
     };
 
@@ -561,8 +594,24 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
 
   const handlePrintNow = (report: typeof reports[0]) => {
     if (printerConfig.connection !== PrinterConnection.SYSTEM && !printerConfig.deviceName) {
-        const proceed = window.confirm("Status Printer: Terputus. Lanjutkan menggunakan dialog cetak browser standar?");
-        if(!proceed) return;
+        showConfirm(
+            "Printer Terputus",
+            "Status Printer: Terputus. Lanjutkan menggunakan dialog cetak browser standar?",
+            () => {
+                const data = report.getData();
+                setPrintingData({
+                    title: report.title,
+                    columns: data.head[0],
+                    rows: data.body
+                });
+
+                // Wait for portal to render then print
+                setTimeout(() => {
+                    handlePrint();
+                }, 500);
+            }
+        );
+        return;
     }
 
     const data = report.getData();
@@ -826,10 +875,14 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                     </div>
                     <button 
                         onClick={() => { 
-                            if(confirm('Simpan pengaturan radius absensi?')) {
-                                updateAppSettings({ attendanceRadius: appSettings.attendanceRadius }); 
-                                alert('Radius berhasil disimpan!'); 
-                            }
+                            showConfirm(
+                                'Simpan Radius',
+                                'Simpan pengaturan radius absensi?',
+                                () => {
+                                    updateAppSettings({ attendanceRadius: appSettings.attendanceRadius }); 
+                                    showToast('Radius berhasil disimpan!', 'success'); 
+                                }
+                            );
                         }}
                         className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center transition-colors"
                         title="Konfirmasi Radius"
@@ -891,8 +944,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                                 onBlur={(e) => {
                                                     const lat = parseFloat(e.target.value);
                                                     if (!isNaN(lat)) {
-                                                        updateOutlet({ 
-                                                            ...outlet, 
+                                                        updateOutlet(outlet.id, { 
                                                             coordinates: { lat, lng: outlet.coordinates?.lng || 0 } 
                                                         });
                                                     }
@@ -909,8 +961,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                                 onBlur={(e) => {
                                                     const lng = parseFloat(e.target.value);
                                                     if (!isNaN(lng)) {
-                                                        updateOutlet({ 
-                                                            ...outlet, 
+                                                        updateOutlet(outlet.id, { 
                                                             coordinates: { lat: outlet.coordinates?.lat || 0, lng } 
                                                         });
                                                     }
@@ -927,8 +978,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                                 onBlur={(e) => {
                                                     const radius = parseInt(e.target.value);
                                                     if (!isNaN(radius)) {
-                                                        updateOutlet({ 
-                                                            ...outlet, 
+                                                        updateOutlet(outlet.id, { 
                                                             radius
                                                         });
                                                     }
@@ -943,13 +993,13 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                                 navigator.geolocation.getCurrentPosition(
                                                     (pos) => {
                                                         const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                                                        updateOutlet({ ...outlet, coordinates: newCoords });
-                                                        alert(`Lokasi ${outlet.name} berhasil diperbarui ke posisi Anda saat ini!`);
+                                                        updateOutlet(outlet.id, { coordinates: newCoords });
+                                                        showToast(`Lokasi ${outlet.name} berhasil diperbarui ke posisi Anda saat ini!`, 'success');
                                                     },
-                                                    (err) => alert("Gagal mendapatkan lokasi: " + err.message)
+                                                    (err) => showToast("Gagal mendapatkan lokasi: " + err.message, 'error')
                                                 );
                                             } else {
-                                                alert("Geolocation tidak didukung browser ini.");
+                                                showToast("Geolocation tidak didukung browser ini.", 'error');
                                             }
                                         }}
                                         className="mt-2 text-[10px] bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600/30 hover:bg-blue-600/30 transition-colors flex items-center gap-1 w-fit"
@@ -1294,7 +1344,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                       <SettingsIcon size={14} />
                                   </button>
                                   <button 
-                                    onClick={() => { if(confirm('Hapus item ini?')) deleteGalleryItem(item.id); }}
+                                    onClick={() => { showConfirm('Hapus Item', 'Hapus item ini?', () => deleteGalleryItem(item.id)); }}
                                     className="p-2 bg-black/50 backdrop-blur-md text-white rounded-lg hover:bg-red-600 transition-all"
                                   >
                                       <Trash2 size={14} />
@@ -1362,7 +1412,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                       <SettingsIcon size={16} />
                                   </button>
                                   <button 
-                                    onClick={() => { if(confirm('Hapus program ini?')) deleteLoyaltyProgram(prog.id); }}
+                                    onClick={() => { showConfirm('Hapus Program', 'Hapus program ini?', () => deleteLoyaltyProgram(prog.id)); }}
                                     className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                                   >
                                       <Trash2 size={16} />
@@ -1724,7 +1774,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                 />
                 <div className="flex justify-end gap-2">
                     <button onClick={() => setIsRoleModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white">Batal</button>
-                    <button onClick={() => { alert('Custom Role ditambahkan (Simulasi)'); setIsRoleModalOpen(false); }} className="px-4 py-2 bg-brand-red text-white rounded-lg">Simpan</button>
+                    <button onClick={() => { showToast('Custom Role ditambahkan (Simulasi)', 'info'); setIsRoleModalOpen(false); }} className="px-4 py-2 bg-brand-red text-white rounded-lg">Simpan</button>
                 </div>
             </div>
         </div>
@@ -1848,36 +1898,16 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
           </div>
       )}
 
-      {confirmModal?.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex items-center gap-3 mb-4 text-brand-gold">
-              <Shield size={24} />
-              <h3 className="text-lg font-bold text-white">{confirmModal.title}</h3>
-            </div>
-            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
-              {confirmModal.message}
-            </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                Batal
-              </button>
-              <button 
-                onClick={() => {
-                  confirmModal.onConfirm();
-                  setConfirmModal(null);
-                }}
-                className="flex-1 py-2.5 bg-brand-red hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-colors"
-              >
-                Ya, Lanjutkan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal 
+        isOpen={confirmModal?.isOpen || false}
+        title={confirmModal?.title || ''}
+        message={confirmModal?.message || ''}
+        onConfirm={() => {
+          confirmModal?.onConfirm();
+          setConfirmModal(null);
+        }}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 };

@@ -51,7 +51,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const handleUpdateProfile = () => {
       updateUser({ ...user, avatar: avatarUrl });
       setIsProfileModalOpen(false);
-      alert('Profile updated!');
+      showToast('Profil berhasil diperbarui!', 'success');
   };
 
   // Handle screen resize

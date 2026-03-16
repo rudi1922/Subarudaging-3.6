@@ -117,7 +117,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
     products, cattleOrders, addCattleOrder, updateCattleOrder, deleteCattleOrder, 
     searchQuery, outlets, transferStock, printerConfig, addSystemLog, 
     addProduct, updateProduct, deleteProduct,
-    navigationParams, setNavigationParams 
+    navigationParams, setNavigationParams, showToast 
   } = useStore();
   const canViewCost = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR;
   const canManageProducts = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR;
@@ -176,7 +176,17 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
 
   const handleOpenAdd = () => { setEditingProduct(null); setFormData({ name: '', category: ProductCategory.PREMIUM, price: 0, stock: 0, minStock: 5, unit: 'kg', description: '', image: '' }); setIsProductModalOpen(true); };
   const handleOpenEdit = (product: Product) => { setEditingProduct(product); setFormData({ ...product }); setIsProductModalOpen(true); };
-  const handleDelete = (id: string) => { if (window.confirm('Hapus produk?')) deleteProduct(id); };
+  const handleDelete = (id: string) => {
+    setConfirmData({
+      isOpen: true,
+      title: 'Hapus Produk',
+      message: 'Apakah Anda yakin ingin menghapus produk ini?',
+      onConfirm: () => {
+        deleteProduct(id);
+        showToast('Produk berhasil dihapus', 'success');
+      }
+    });
+  };
 
   // Handle Navigation Params from Dashboard
   React.useEffect(() => {
@@ -239,7 +249,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
     
     if (!product) return;
     if (product.stock < transferData.quantity) {
-      alert('Stok tidak mencukupi untuk transfer!');
+      showToast('Stok tidak mencukupi untuk transfer!', 'error');
       return;
     }
 
@@ -261,7 +271,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
         });
     }
 
-    alert(`Sukses! Transfer ${transferData.quantity} ${product.unit} ${product.name} sedang diproses.`);
+    showToast(`Sukses! Transfer ${transferData.quantity} ${product.unit} ${product.name} sedang diproses.`, 'success');
     setIsTransferModalOpen(false);
   };
 
@@ -272,9 +282,15 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   };
 
   const handleDeleteCattle = (id: string) => {
-    if (window.confirm('Hapus Data PO Sapi?')) {
-      deleteCattleOrder(id);
-    }
+    setConfirmData({
+      isOpen: true,
+      title: 'Hapus PO Sapi',
+      message: 'Apakah Anda yakin ingin menghapus data PO Sapi ini?',
+      onConfirm: () => {
+        deleteCattleOrder(id);
+        showToast('Data PO Sapi berhasil dihapus', 'success');
+      }
+    });
   };
 
   const handleSaveCattle = (e: React.FormEvent) => {

@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Truck, MapPin, User, Plus, CheckCircle, FileText, Printer, Camera } from 'lucide-react';
 import { useStore } from '../StoreContext';
 import { Delivery, Vehicle } from '../types';
 import { PrinterService } from '../utils/printer';
 
 const Distribution: React.FC = () => {
-  const { deliveries, vehicles, employees, transactions, customers, addDelivery, updateDelivery, addVehicle, printerConfig } = useStore();
-  const [activeTab, setActiveTab] = useState<'deliveries' | 'vehicles' | 'reports'>('deliveries');
+  const { deliveries, vehicles, employees, transactions, customers, addDelivery, updateDelivery, addVehicle, printerConfig, setConfirmData, showToast } = useStore();
+  const [activeTab, setActiveTab] = useState<'deliveries' | 'vehicles' | 'reports' | 'map'>(() => (localStorage.getItem('dist_active_tab') as any) || 'deliveries');
+  
+  useEffect(() => {
+    localStorage.setItem('dist_active_tab', activeTab);
+  }, [activeTab]);
+
   const [showNewDeliveryModal, setShowNewDeliveryModal] = useState(false);
   const [showNewVehicleModal, setShowNewVehicleModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState<string | null>(null); // Delivery ID
@@ -73,28 +78,27 @@ const Distribution: React.FC = () => {
       e.preventDefault();
       if (!showCompleteModal) return;
 
-      if (!window.confirm("Apakah Anda yakin ingin menyelesaikan pengiriman ini? Pastikan semua data sudah benar.")) {
-          return;
-      }
-
-      const delivery = deliveries.find(d => d.id === showCompleteModal);
-      if (delivery) {
-          updateDelivery({
-              ...delivery,
-              status: 'Selesai',
-              endTime: new Date().toISOString(),
-              notes: completionData.notes,
-              proofImage: completionData.proofImage // In real app, this would be a URL
-          });
-          
-          // Update Vehicle Status to Available
-          const vehicle = vehicles.find(v => v.id === delivery.vehicleId);
-          if (vehicle) {
-              // Logic to free up vehicle? Maybe not automatically, but for now let's assume driver returns.
+      setConfirmData({
+          isOpen: true,
+          title: 'Selesaikan Pengiriman',
+          message: 'Apakah Anda yakin ingin menyelesaikan pengiriman ini? Pastikan semua data sudah benar.',
+          onConfirm: () => {
+              const delivery = deliveries.find(d => d.id === showCompleteModal);
+              if (delivery) {
+                  updateDelivery({
+                      ...delivery,
+                      status: 'Selesai',
+                      endTime: new Date().toISOString(),
+                      notes: completionData.notes,
+                      proofImage: completionData.proofImage // In real app, this would be a URL
+                  });
+                  
+                  showToast('Pengiriman berhasil diselesaikan', 'success');
+              }
+              setShowCompleteModal(null);
+              setCompletionData({ notes: '', proofImage: '' });
           }
-      }
-      setShowCompleteModal(null);
-      setCompletionData({ notes: '', proofImage: '' });
+      });
   };
 
   const handlePrintManifest = async (delivery: Delivery) => {
@@ -179,9 +183,9 @@ const Distribution: React.FC = () => {
           Laporan Pengiriman
         </button>
         <button 
-          onClick={() => setActiveTab('map' as any)}
+          onClick={() => setActiveTab('map')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === ('map' as any) ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
+            activeTab === 'map' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
           }`}
         >
           Peta Pengiriman

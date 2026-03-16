@@ -7,6 +7,7 @@ import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { PrinterService } from '../utils/printer';
 import { getUsers, createUser, updateUser, deleteUser } from '../services/auth';
+import ConfirmModal from './ConfirmModal';
 
 interface HRProps {
   user?: UserType;
@@ -87,7 +88,7 @@ const PrintableSlip = ({ slipData, paperSize }: { slipData: ReceiptData | null; 
 type HRTab = 'overview' | 'attendance' | 'payroll' | 'financials' | 'users' | 'monitor';
 
 const HR: React.FC<HRProps> = ({ user }) => {
-  const { employees, setEmployees, employeeFinancials, addEmployeeFinancial, searchQuery, printerConfig, addSystemLog, attendanceHistory, appSettings, outlets, checkInEmployee, users: allUsers, approveUser } = useStore();
+  const { employees, setEmployees, employeeFinancials, addEmployeeFinancial, searchQuery, printerConfig, addSystemLog, attendanceHistory, appSettings, outlets, checkInEmployee, users: allUsers, approveUser, showToast } = useStore();
   const [activeTab, setActiveTab] = useState<HRTab>('overview');
   const [localSearch, setLocalSearch] = useState('');
   const [viewHistory, setViewHistory] = useState(false);
@@ -142,35 +143,41 @@ const HR: React.FC<HRProps> = ({ user }) => {
       if (editingUser) {
           const updated = await updateUser(editingUser.id, userFormData);
           if (updated) {
-              alert('User updated successfully');
+              showToast('User updated successfully', 'success');
               setIsUserModalOpen(false);
               getUsers().then(setUsers);
           } else {
-              alert('Failed to update user');
+              showToast('Failed to update user', 'error');
           }
       } else {
-          if (!userFormData.password) return alert('Password is required for new users');
+          if (!userFormData.password) return showToast('Password is required for new users', 'error');
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const created = await createUser(userFormData as any);
           if (created) {
-              alert('User created successfully');
+              showToast('User created successfully', 'success');
               setIsUserModalOpen(false);
               getUsers().then(setUsers);
           } else {
-              alert('Failed to create user');
+              showToast('Failed to create user', 'error');
           }
       }
   };
 
   const handleDeleteUser = async (id: string) => {
-      if (confirm('Are you sure you want to delete this user?')) {
-          const success = await deleteUser(id);
-          if (success) {
-              getUsers().then(setUsers);
-          } else {
-              alert('Failed to delete user');
+      setConfirmData({
+          isOpen: true,
+          title: 'Hapus User',
+          message: 'Apakah Anda yakin ingin menghapus user ini?',
+          onConfirm: async () => {
+              const success = await deleteUser(id);
+              if (success) {
+                  showToast('User berhasil dihapus', 'success');
+                  getUsers().then(setUsers);
+              } else {
+                  showToast('Failed to delete user', 'error');
+              }
           }
-      }
+      });
   };
 
   // Financial Modal
@@ -187,6 +194,19 @@ const HR: React.FC<HRProps> = ({ user }) => {
   // Broadcast Modal State
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState('');
+
+  // Confirm Modal State
+  const [confirmData, setConfirmData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Printer State
   const [printerStatus, setPrinterStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -221,19 +241,19 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleCheckIn = async () => {
     if (!user || !user.employeeId) {
-        alert("Anda tidak terdaftar sebagai karyawan.");
+        showToast("Anda tidak terdaftar sebagai karyawan.", 'error');
         return;
     }
 
     const emp = employees.find(e => e.id === user.employeeId);
     if (!emp) {
-        alert("Data karyawan tidak ditemukan.");
+        showToast("Data karyawan tidak ditemukan.", 'error');
         return;
     }
 
     const outlet = outlets.find(o => o.id === emp.outletId);
     if (!outlet || !outlet.coordinates) {
-        alert("Lokasi kerja tidak terkonfigurasi untuk Anda.");
+        showToast("Lokasi kerja tidak terkonfigurasi untuk Anda.", 'error');
         return;
     }
 
@@ -249,12 +269,12 @@ const HR: React.FC<HRProps> = ({ user }) => {
         const isValidIp = !emp.deviceIp || emp.deviceIp === currentIp;
 
         if (!isValidLocation) {
-            alert(`Gagal Absensi: Anda berada di luar radius lokasi kerja (${Math.round(distance)}m dari ${outlet.name}).`);
+            showToast(`Gagal Absensi: Anda berada di luar radius lokasi kerja (${Math.round(distance)}m dari ${outlet.name}).`, 'error');
             return;
         }
 
         if (!isValidIp) {
-            alert(`Gagal Absensi: Perangkat Anda tidak terdaftar (${currentIp}). Gunakan HP Anda sendiri.`);
+            showToast(`Gagal Absensi: Perangkat Anda tidak terdaftar (${currentIp}). Gunakan HP Anda sendiri.`, 'error');
             return;
         }
 
@@ -277,26 +297,31 @@ const HR: React.FC<HRProps> = ({ user }) => {
             device: navigator.userAgent
         });
 
-        alert(`${isCheckingOut ? 'Check-Out' : 'Check-In'} Berhasil di ${outlet.name}!`);
+        showToast(`${isCheckingOut ? 'Check-Out' : 'Check-In'} Berhasil di ${outlet.name}!`, 'success');
       }, (err) => {
-        alert(`Gagal mendapatkan lokasi: ${err.message}`);
+        showToast(`Gagal mendapatkan lokasi: ${err.message}`, 'error');
       });
     } else {
-      alert("Geolocation tidak didukung oleh browser ini.");
+      showToast("Geolocation tidak didukung oleh browser ini.", 'error');
     }
   };
 
   // Printer Connection Logic (Simulation)
   const handleConnectPrinter = () => {
       if (printerStatus === 'connected') {
-          if(confirm('Putuskan koneksi printer?')) setPrinterStatus('disconnected');
+          setConfirmData({
+              isOpen: true,
+              title: 'Putus Koneksi',
+              message: 'Apakah Anda yakin ingin memutuskan koneksi printer?',
+              onConfirm: () => setPrinterStatus('disconnected')
+          });
           return;
       }
       setPrinterStatus('connecting');
       // Simulate Bluetooth/USB handshake delay
       setTimeout(() => {
           setPrinterStatus('connected');
-          alert('Printer Thermal Terhubung (Ready)');
+          showToast('Printer Thermal Terhubung (Ready)', 'success');
       }, 1500);
   };
 
@@ -347,7 +372,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleSaveFinancial = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedEmpId) return alert('Pilih karyawan');
+      if (!selectedEmpId) return showToast('Pilih karyawan', 'error');
       
       addEmployeeFinancial({
           id: `fin-${Date.now()}`,
@@ -426,7 +451,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
   // --- WHATSAPP FEATURES ---
   const handleChatWA = (emp: Employee) => {
       if (!emp.phone) {
-          alert('Nomor telepon tidak tersedia.');
+          showToast('Nomor telepon tidak tersedia.', 'error');
           return;
       }
       const msg = `Halo ${emp.name}, ada hal yang ingin saya diskusikan terkait pekerjaan.`;
@@ -438,12 +463,16 @@ const HR: React.FC<HRProps> = ({ user }) => {
       e.preventDefault();
       if (!broadcastMessage) return;
       
-      const confirmSend = window.confirm(`Kirim pengumuman ini ke ${filteredEmployees.length} karyawan yang tampil di daftar?`);
-      if (confirmSend) {
-          alert(`Pesan Broadcast Terkirim:\n"${broadcastMessage}"\n\nTarget: ${filteredEmployees.length} Penerima.`);
-          setIsBroadcastOpen(false);
-          setBroadcastMessage('');
-      }
+      setConfirmData({
+          isOpen: true,
+          title: 'Kirim Broadcast',
+          message: `Kirim pengumuman ini ke ${filteredEmployees.length} karyawan yang tampil di daftar?`,
+          onConfirm: () => {
+              showToast(`Pesan Broadcast Terkirim ke ${filteredEmployees.length} Penerima.`, 'success');
+              setIsBroadcastOpen(false);
+              setBroadcastMessage('');
+          }
+      });
   };
 
   // --- PRINT & EXPORT LOGIC ---
@@ -495,7 +524,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleSendSalaryWA = (emp: Employee) => {
       if (!emp.phone) {
-          alert('Nomor telepon karyawan tidak tersedia!');
+          showToast('Nomor telepon karyawan tidak tersedia!', 'error');
           return;
       }
       const calc = calculateWeeklySalary(emp);
@@ -1090,11 +1119,17 @@ const HR: React.FC<HRProps> = ({ user }) => {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={async () => {
-                                            if (confirm(`Setujui akses untuk ${u.name}?`)) {
-                                                await approveUser(u.id);
-                                                getUsers().then(setUsers);
-                                            }
+                                        onClick={() => {
+                                            setConfirmData({
+                                                isOpen: true,
+                                                title: 'Setujui Akses',
+                                                message: `Setujui akses untuk ${u.name}?`,
+                                                onConfirm: async () => {
+                                                    await approveUser(u.id);
+                                                    getUsers().then(setUsers);
+                                                    showToast(`Akses untuk ${u.name} disetujui`, 'success');
+                                                }
+                                            });
                                         }}
                                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-emerald-900/20"
                                     >
@@ -1214,10 +1249,15 @@ const HR: React.FC<HRProps> = ({ user }) => {
                             <button 
                                 type="button"
                                 onClick={() => {
-                                    if (confirm(`Apakah Anda yakin ingin menghapus user ${editingUser.name}?`)) {
-                                        handleDeleteUser(editingUser.id);
-                                        setIsUserModalOpen(false);
-                                    }
+                                    setConfirmData({
+                                        isOpen: true,
+                                        title: 'Hapus User',
+                                        message: `Apakah Anda yakin ingin menghapus user ${editingUser.name}?`,
+                                        onConfirm: () => {
+                                            handleDeleteUser(editingUser.id);
+                                            setIsUserModalOpen(false);
+                                        }
+                                    });
                                 }}
                                 className="flex-1 py-3 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                             >
@@ -1417,7 +1457,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
                                     fetch('https://api.ipify.org?format=json')
                                     .then(res => res.json())
                                     .then(data => setEditingEmployee({...editingEmployee, deviceIp: data.ip}))
-                                    .catch(err => alert('Gagal mendapatkan IP: ' + err.message));
+                                    .catch(err => showToast('Gagal mendapatkan IP: ' + err.message, 'error'));
                                 }}
                                 className="bg-blue-600/20 text-blue-400 px-3 rounded-lg border border-blue-600/30 hover:bg-blue-600/30 text-xs whitespace-nowrap"
                             >
@@ -1483,6 +1523,17 @@ const HR: React.FC<HRProps> = ({ user }) => {
             </div>
           </div>
       )}
+
+      <ConfirmModal 
+        isOpen={confirmData.isOpen}
+        title={confirmData.title}
+        message={confirmData.message}
+        onConfirm={() => {
+          confirmData.onConfirm();
+          setConfirmData(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmData(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

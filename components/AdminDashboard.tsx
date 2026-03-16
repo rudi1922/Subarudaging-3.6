@@ -1,17 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../StoreContext';
 import { UserCheck, Shield, AlertCircle } from 'lucide-react';
 import { User } from '../types';
+import ConfirmModal from './ConfirmModal';
 
 const AdminDashboard: React.FC = () => {
   const { users, approveUser } = useStore();
+  const [confirmData, setConfirmData] = useState<{ isOpen: boolean; userId: string } | null>(null);
   
   // Filter users that are not approved
   const pendingUsers = users.filter((u: User) => u.isApproved === false);
 
   const handleApprove = async (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menyetujui user ini?')) {
-      await approveUser(id);
+    setConfirmData({ isOpen: true, userId: id });
+  };
+
+  const executeApprove = async () => {
+    if (confirmData) {
+      await approveUser(confirmData.userId);
+      setConfirmData(null);
     }
   };
 
@@ -80,6 +87,16 @@ const AdminDashboard: React.FC = () => {
           <strong>Penting:</strong> Hanya berikan persetujuan kepada staf yang Anda kenal. Setelah disetujui, user akan memiliki akses penuh sesuai dengan role yang diberikan.
         </p>
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmData?.isOpen}
+        title="Setujui Pengguna"
+        message="Apakah Anda yakin ingin menyetujui user ini? User akan mendapatkan akses ke sistem sesuai rolenya."
+        onConfirm={executeApprove}
+        onCancel={() => setConfirmData(null)}
+        confirmText="Ya, Setujui"
+        type="info"
+      />
     </div>
   );
 };

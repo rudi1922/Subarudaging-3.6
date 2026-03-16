@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, MessageCircle, Navigation, Target, Plus, Clock, AlertTriangle, Wallet, Facebook, Instagram, Share2, Edit } from 'lucide-react';
+import { MapPin, MessageCircle, Navigation, Target, Plus, Clock, Wallet, Facebook, Instagram, Share2, Edit, Search } from 'lucide-react';
 import { useStore } from '../StoreContext';
 import { User as UserType, Role, VisitRecord, Lead, Receivable } from '../types';
 import MarketAnalysis from './MarketAnalysis';
@@ -214,7 +214,7 @@ const CollectionView = ({ receivables, handleCheckIn, setCollectionAction, user,
 };
 
 const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
-    const { receivables, visitRecords, leads, addVisitRecord, addLead, payReceivable, addSystemLog } = useStore();
+    const { receivables, visitRecords, leads, addVisitRecord, addLead, payReceivable, addSystemLog, showToast } = useStore();
     const [activeTab, setActiveTab] = useState<'marketing' | 'collection'>(user.role === Role.DEBT_COLLECTOR ? 'collection' : 'marketing');
     const [searchTerm, setSearchTerm] = useState('');
     
@@ -262,7 +262,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
                         device: 'Mobile'
                     });
                     setIsCheckingIn(false);
-                    alert(`Berhasil Check-In di ${loc}`);
+                    showToast(`Berhasil Check-In di ${loc}`, 'success');
                 }, () => {
                     // Fallback
                     const newRecord: VisitRecord = {
@@ -278,7 +278,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
                     };
                     addVisitRecord(newRecord);
                     setIsCheckingIn(false);
-                    alert('Check-In Manual Berhasil (GPS Gagal)');
+                    showToast('Check-In Manual Berhasil (GPS Gagal)', 'warning');
                 });
             }
         }, 1000);
@@ -316,7 +316,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
         if (!collectionAction) return;
 
         if (collectionAction.action === 'bayar') {
-            if (paymentAmount <= 0) return alert('Masukkan nominal bayar');
+            if (paymentAmount <= 0) return showToast('Masukkan nominal bayar', 'error');
             payReceivable(collectionAction.rec.id, paymentAmount);
             addVisitRecord({
                 id: `v-${Date.now()}`,
@@ -373,7 +373,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
         setCollectionAction(null);
         setPaymentAmount(0);
         setNotes('');
-        alert('Aktivitas Penagihan Tercatat');
+        showToast('Aktivitas Penagihan Tercatat', 'success');
     };
 
     // --- RENDERERS ---

@@ -10,7 +10,7 @@ interface StakeholdersProps {
 const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
   const [localSearch, setLocalSearch] = useState('');
-  const { searchQuery, customers, setCustomers, addCustomer, addSystemLog, suppliers, setSuppliers } = useStore();
+  const { searchQuery, customers, setCustomers, addCustomer, addSystemLog, suppliers, setSuppliers, setConfirmData, showToast } = useStore();
   
   // Data State
   // const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS); // REMOVED LOCAL STATE
@@ -70,13 +70,19 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this contact?')) {
-      if (activeTab === 'customers') {
-        setCustomers(prev => prev.filter(c => c.id !== id));
-      } else {
-        setSuppliers(prev => prev.filter(s => s.id !== id));
+    setConfirmData({
+      isOpen: true,
+      title: 'Hapus Kontak',
+      message: 'Apakah Anda yakin ingin menghapus kontak ini?',
+      onConfirm: () => {
+        if (activeTab === 'customers') {
+          setCustomers(prev => prev.filter(c => c.id !== id));
+        } else {
+          setSuppliers(prev => prev.filter(s => s.id !== id));
+        }
+        showToast('Kontak berhasil dihapus', 'success');
       }
-    }
+    });
   };
 
   const validateForm = (data: Partial<Customer> | Partial<Supplier>) => {
@@ -230,11 +236,11 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
         const demoCustomer = customers[0];
         const url = `https://wa.me/${demoCustomer.phone}?text=${encodeURIComponent(broadcastMsg)}`;
         
-        alert(`Simulasi: Membuka WhatsApp Web untuk Broadcast.\nTarget: ${customers.length} Pelanggan.\n\nDalam mode produksi, ini akan menggunakan WA API Gateway.`);
+        showToast(`Simulasi: Membuka WhatsApp Web untuk Broadcast.\nTarget: ${customers.length} Pelanggan.`, 'info');
         window.open(url, '_blank');
         setIsBroadcastModalOpen(false);
     } else {
-        alert("Belum ada data pelanggan untuk di-broadcast.");
+        showToast("Belum ada data pelanggan untuk di-broadcast.", 'warning');
     }
   };
 
