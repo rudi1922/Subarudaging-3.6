@@ -260,11 +260,7 @@ export class PrinterService {
   public async print(data: ReceiptData | PrintingData): Promise<void> {
     const configCheck = this.checkConfig();
     if (!configCheck.ready && this.config.connection !== PrinterConnection.SYSTEM) {
-        const proceed = window.confirm(`${configCheck.message}\n\nLanjutkan menggunakan dialog cetak sistem (Browser)?`);
-        if (!proceed) return;
-        // Fallback to system print
-        window.print();
-        return;
+        throw new Error('PRINTER_NOT_CONFIGURED');
     }
 
     if (this.config.connection === PrinterConnection.SYSTEM) {
@@ -343,7 +339,8 @@ export class PrinterService {
             const buffer = this.generateThermalReceiptBuffer(data as ReceiptData);
             await this.sendBluetoothData(characteristic, buffer);
             
-            alert("Cetak Berhasil via Bluetooth!");
+            // alert("Cetak Berhasil via Bluetooth!");
+            console.warn("Cetak Berhasil via Bluetooth!");
             if (device.gatt.connected) {
                 device.gatt.disconnect();
             }
@@ -355,7 +352,7 @@ export class PrinterService {
              return;
         }
         console.error('Bluetooth Print Error:', error);
-        alert('Gagal mencetak ke Bluetooth. Pastikan perangkat aktif dan browser mendukung.');
+        throw new Error('Gagal mencetak ke Bluetooth. Pastikan perangkat aktif dan browser mendukung.');
       }
     } else if (this.config.connection === PrinterConnection.USB) {
         try {
@@ -372,7 +369,8 @@ export class PrinterService {
             
             // Endpoint number might vary, usually 1 or 2 for OUT
             await device.transferOut(1, buffer);
-            alert("Cetak Berhasil via USB!");
+            // alert("Cetak Berhasil via USB!");
+            console.warn("Cetak Berhasil via USB!");
             await device.close();
         } catch (error: unknown) {
             const err = error as Error;
@@ -381,7 +379,7 @@ export class PrinterService {
                  return;
             }
             console.error('USB Print Error:', error);
-            alert('Gagal mencetak ke USB. Pastikan kabel terhubung dan izin diberikan.');
+            throw new Error('Gagal mencetak ke USB. Pastikan kabel terhubung dan izin diberikan.');
         }
     }
   }
