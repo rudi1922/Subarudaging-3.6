@@ -1,5 +1,5 @@
 {
-  "name": "Subaru ERP & POS",
+  "name": "Subarudaging_3.6",
   "description": "Integrated ERP and POS system for Subaru Daging Sapi, featuring inventory management, finance, HR, and a public landing page.",
   "requestFramePermissions": [
     "geolocation",

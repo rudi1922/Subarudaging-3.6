@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { calculateDistance } from './utils/location';
-import { Product, Transaction, Receivable, CartItem, Expense, EmployeeFinancial, Employee, CattleOrder, Outlet, Notification, Role, VisitRecord, Lead, SystemLog, CattlePrice, AppSettings, PrinterConfig, PrinterType, PrinterConnection, Customer, User, Delivery, Vehicle, MarketNote, PricePoint, MarketSurvey, WeighingLog, AttendanceRecord, Supplier, DebtPayment, CattleType, RolePermissions, GalleryItem, LoyaltyProgram, Commission, Asset, PrivateTransaction } from './types';
+import { Product, ProductCategory, Transaction, Receivable, CartItem, Expense, EmployeeFinancial, Employee, CattleOrder, Outlet, Notification, Role, VisitRecord, Lead, SystemLog, CattlePrice, AppSettings, PrinterConfig, PrinterType, PrinterConnection, Customer, User, Delivery, Vehicle, CourierLocation, MarketNote, PricePoint, MarketSurvey, WeighingLog, AttendanceRecord, Supplier, DebtPayment, CattleType, RolePermissions, GalleryItem, LoyaltyProgram, Commission, Asset, PrivateTransaction } from './types';
 
 interface StoreContextType {
   products: Product[];
@@ -26,12 +26,14 @@ interface StoreContextType {
   users: User[];
   deliveries: Delivery[];
   vehicles: Vehicle[];
+  courierLocations: CourierLocation[];
   marketNotes: MarketNote[];
   pricePoints: PricePoint[];
   marketSurveys: MarketSurvey[];
   weighingLogs: WeighingLog[];
   attendanceHistory: AttendanceRecord[];
   suppliers: Supplier[];
+  divisions: string[];
   commissions: Commission[];
   collectionTarget: number;
   navigationParams: { view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null;
@@ -40,13 +42,12 @@ interface StoreContextType {
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
+  setDivisions: React.Dispatch<React.SetStateAction<string[]>>;
   setCommissions: React.Dispatch<React.SetStateAction<Commission[]>>;
   setCollectionTarget: React.Dispatch<React.SetStateAction<number>>;
   setNavigationParams: React.Dispatch<React.SetStateAction<{ view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null>>;
   galleryItems: GalleryItem[];
   loyaltyPrograms: LoyaltyProgram[];
-  toasts: Toast[];
-  showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
   addGalleryItem: (item: GalleryItem) => void;
   updateGalleryItem: (item: GalleryItem) => void;
   deleteGalleryItem: (id: string) => void;
@@ -62,6 +63,7 @@ interface StoreContextType {
   deleteCattleOrder: (id: string) => void;
   addOutlet: (outlet: Outlet) => void;
   updateOutlet: (outlet: Outlet) => void;
+  deleteOutlet: (id: string) => void;
   addNotification: (notification: Notification) => void;
   addVisitRecord: (record: VisitRecord) => void;
   addLead: (lead: Lead) => void;
@@ -83,6 +85,7 @@ interface StoreContextType {
   payReceivable: (id: string, amount: number, collectorId?: string) => void;
   addDelivery: (delivery: Delivery) => void;
   updateDelivery: (delivery: Delivery) => void;
+  updateCourierLocation: (location: CourierLocation) => void;
   addVehicle: (vehicle: Vehicle) => void;
   addMarketNote: (note: MarketNote) => void;
   deleteMarketNote: (id: string) => void;
@@ -92,6 +95,8 @@ interface StoreContextType {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
+  initializeMeatProducts: () => Promise<void>;
+  initializeEmployees: () => Promise<void>;
   approveUser: (id: string) => Promise<void>;
   customerMode: boolean;
   setCustomerMode: (mode: boolean) => void;
@@ -103,6 +108,7 @@ interface StoreContextType {
   addPrivateTransaction: (tx: PrivateTransaction) => void;
   deletePrivateTransaction: (id: string) => void;
   isLoading: boolean;
+  confirm: (options: { title: string; message: string; onConfirm: () => void }) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -138,42 +144,67 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [employees, setEmployees] = usePersistentState<Employee[]>('app_employees', []);
   const [employeeFinancials, setEmployeeFinancials] = usePersistentState<EmployeeFinancial[]>('app_employee_financials', []);
   const [cattleOrders, setCattleOrders] = usePersistentState<CattleOrder[]>('app_cattle_orders', []);
-  const [outlets, setOutlets] = usePersistentState<Outlet[]>('app_outlets', []);
+  const [outlets, setOutlets] = usePersistentState<Outlet[]>('app_outlets', [
+    { id: 'o1', name: 'Kantor Pusat', address: 'Jl. Utama No. 1', phone: '08123456789', radius: 100, isStatic: true },
+    { id: 'o2', name: 'RPH Subaru', address: 'Jl. RPH No. 2', phone: '08123456789', radius: 100, isStatic: true },
+    { id: 'o3', name: 'Umum', address: 'Lokasi Umum', phone: '08123456789', radius: 100, isStatic: true },
+    { id: 'o4', name: 'Gerai Pasar Tamin', address: 'Pasar Tamin', phone: '08123456789', radius: 100 },
+    { id: 'o5', name: 'Gerai Pasar Way Halim', address: 'Pasar Way Halim', phone: '08123456789', radius: 100 },
+    { id: 'o6', name: 'Gerai Pasar Tugu', address: 'Pasar Tugu', phone: '08123456789', radius: 100 }
+  ]);
   const [notifications, setNotifications] = usePersistentState<Notification[]>('app_notifications', []);
   const [visitRecords, setVisitRecords] = usePersistentState<VisitRecord[]>('app_visit_records', []);
   const [leads, setLeads] = usePersistentState<Lead[]>('app_leads', []);
   const [systemLogs, setSystemLogs] = usePersistentState<SystemLog[]>('app_system_logs', []);
   const [cattlePrices, setCattlePrices] = usePersistentState<CattlePrice[]>('app_cattle_prices', []);
   const [cattleTypes, setCattleTypes] = usePersistentState<CattleType[]>('app_cattle_types', []);
-  const [galleryItems, setGalleryItems] = usePersistentState<GalleryItem[]>('app_gallery_items', []);
+  const [galleryItems, setGalleryItems] = usePersistentState<GalleryItem[]>('app_gallery_items', [
+    { id: 'g1', title: 'Proses Produksi Higienis', subtitle: 'Standar keamanan pangan internasional', imageUrl: "https://images.unsplash.com/photo-1558030006-450675393462?q=80&w=1200", date: '01 Mar 2026', category: 'Produksi', content: 'Kami menerapkan standar HACCP dalam setiap proses produksi daging sapi kami...' },
+    { id: 'g2', title: 'Distribusi Armada', subtitle: 'Pengiriman tepat waktu', imageUrl: "https://images.unsplash.com/photo-1615937657715-bc7b4b7962c1?q=80&w=600", date: '28 Feb 2026', category: 'Logistik', content: 'Armada kami dilengkapi dengan pendingin untuk menjaga kualitas daging tetap segar...' },
+    { id: 'g3', title: 'Kunjungan Dinas', subtitle: 'Sinergi dengan pemerintah', imageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600", date: '25 Feb 2026', category: 'Kegiatan', content: 'Menerima kunjungan dari Dinas Peternakan untuk peninjauan standar RPH...' },
+    { id: 'g4', title: 'Kualitas Premium', subtitle: 'Daging pilihan terbaik', imageUrl: "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=80&w=1200", date: '20 Feb 2026', category: 'Produk', content: 'Setiap potongan daging melewati kontrol kualitas yang ketat sebelum dipasarkan...' }
+  ]);
   const [loyaltyPrograms, setLoyaltyPrograms] = usePersistentState<LoyaltyProgram[]>('app_loyalty_programs', []);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info', duration = 3000) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    const newToast: Toast = { id, message, type, duration };
-    setToasts(prev => [...prev, newToast]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, duration);
-  };
   const [navigationParams, setNavigationParams] = usePersistentState<{ view?: string; tab?: string; action?: string; params?: Record<string, unknown> } | null>('app_nav_params', null);
   const [customers, setCustomers] = usePersistentState<Customer[]>('app_customers', []);
   const [users, setUsers] = usePersistentState<User[]>('app_users', []);
-  const [deliveries, setDeliveries] = usePersistentState<Delivery[]>('app_deliveries', []);
-  const [vehicles, setVehicles] = usePersistentState<Vehicle[]>('app_vehicles', []);
+  const [deliveries, setDeliveries] = usePersistentState<Delivery[]>('app_deliveries', [
+    { id: 'DEL-001', transactionId: 'T-001', vehicleId: 'v1', driverId: 'u1', status: 'In Transit', estimatedArrival: '14:30', notes: 'Jl. Merdeka No. 10' },
+    { id: 'DEL-002', transactionId: 'T-002', vehicleId: 'v2', driverId: 'u2', status: 'Pending', estimatedArrival: '16:00', notes: 'Pasar Tamin' }
+  ]);
+  const [vehicles, setVehicles] = usePersistentState<Vehicle[]>('app_vehicles', [
+    { id: 'v1', name: 'Truck Pendingin 01', type: 'Truck', plateNumber: 'BE 1234 AB', status: 'Available', capacity: 2000, lastMaintenance: '2026-01-15' },
+    { id: 'v2', name: 'Pickup 02', type: 'Pickup', plateNumber: 'BE 5678 CD', status: 'In Use', capacity: 1000, lastMaintenance: '2026-02-10' }
+  ]);
+  const [courierLocations, setCourierLocations] = usePersistentState<CourierLocation[]>('app_courier_locations', [
+    { userId: 'u1', latitude: -5.3971, longitude: 105.2668, status: 'In Transit', timestamp: new Date().toISOString() },
+    { userId: 'u2', latitude: -5.4071, longitude: 105.2768, status: 'Delivering', timestamp: new Date().toISOString() }
+  ]);
   const [marketNotes, setMarketNotes] = usePersistentState<MarketNote[]>('app_market_notes', []);
   const [pricePoints, setPricePoints] = usePersistentState<PricePoint[]>('app_price_points', []);
   const [marketSurveys, setMarketSurveys] = usePersistentState<MarketSurvey[]>('app_market_surveys', []);
   const [weighingLogs, setWeighingLogs] = usePersistentState<WeighingLog[]>('app_weighing_logs', []);
   const [attendanceHistory, setAttendanceHistory] = usePersistentState<AttendanceRecord[]>('app_attendance_history', []);
   const [suppliers, setSuppliers] = usePersistentState<Supplier[]>('app_suppliers', []);
+  const [divisions, setDivisions] = usePersistentState<string[]>('app_divisions', [
+    'DIVISI KANTOR PUSAT',
+    'DIVISI RPH SUBARU',
+    'DIVISI SUBARU PASAR TAMIN',
+    'DIVISI SUBARU PASAR WAY HALIM',
+    'DIVISI SUBARU PASAR TUGU',
+    'DIVISI UMUM'
+  ]);
   const [commissions, setCommissions] = usePersistentState<Commission[]>('app_commissions', []);
   const [collectionTarget, setCollectionTarget] = usePersistentState<number>('app_collection_target', 10000000); // Default 10jt
   const [customerMode, setCustomerMode] = usePersistentState<boolean>('app_customer_mode', false);
   const [assets, setAssets] = usePersistentState<Asset[]>('app_assets', []);
   const [privateTransactions, setPrivateTransactions] = usePersistentState<PrivateTransaction[]>('app_private_transactions', []);
   const [isLoading, setIsLoading] = useState(true);
+  const [confirmOptions, setConfirmOptions] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
+  const confirm = (options: { title: string; message: string; onConfirm: () => void }) => {
+    setConfirmOptions(options);
+  };
 
   const [appSettings, setAppSettings] = usePersistentState<AppSettings>('app_settings', {
       allowNegativeStock: false,
@@ -337,11 +368,28 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 deviceIp: (e.device_ip as string) || '',
                 isWarehousePIC: (e.is_warehouse_pic as boolean) || false
             }))),
-            fetchTable<User>('users', setUsers, (data) => data.map((u) => ({
-                ...u as unknown as User,
-                employeeId: u.employee_id as string,
-                outletId: u.outlet_id as string
-            }))),
+            fetchTable<User>('users', setUsers, (data) => data.map((u) => {
+                const dbRole = (u.role as string || '').toLowerCase();
+                let normalizedRole = Role.CASHIER; // Default
+                if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+                else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+                else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+                else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+                else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+                else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+                else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+                else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+                else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+                else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+                return {
+                    ...u as unknown as User,
+                    role: normalizedRole,
+                    employeeId: u.employee_id as string,
+                    outletId: u.outlet_id as string,
+                    isApproved: (u.is_approved ?? u.isApproved) as boolean
+                };
+            })),
             fetchTable<AttendanceRecord>('attendance', setAttendanceHistory, (data) => data.map((item) => ({
                 id: item.id as string,
                 employeeId: item.employee_id as string,
@@ -548,6 +596,156 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             })
             .subscribe();
 
+        const employeeSubscription = supabase
+            .channel('public:employees')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setEmployees(prev => {
+                        if (prev.some(e => e.id === payload.new.id)) return prev;
+                        const e = payload.new as Record<string, unknown>;
+                        return [{
+                            ...e,
+                            checkInTime: e.check_in_time || '',
+                            checkOutTime: e.check_out_time || '',
+                            baseSalary: e.base_salary || 0,
+                            outletId: e.outlet_id || 'HEAD-OFFICE',
+                            deviceIp: e.device_ip || '',
+                            isWarehousePIC: e.is_warehouse_pic || false
+                        } as Employee, ...prev];
+                    });
+                } else if (payload.eventType === 'UPDATE') {
+                    const e = payload.new as Record<string, unknown>;
+                    setEmployees(prev => prev.map(emp => emp.id === e.id ? {
+                        ...emp,
+                        ...e,
+                        checkInTime: e.check_in_time || emp.checkInTime,
+                        checkOutTime: e.check_out_time || emp.checkOutTime,
+                        baseSalary: e.base_salary || emp.baseSalary,
+                        outletId: e.outlet_id || emp.outletId,
+                        deviceIp: e.device_ip || emp.deviceIp,
+                        isWarehousePIC: e.is_warehouse_pic ?? emp.isWarehousePIC
+                    } as Employee : emp));
+                } else if (payload.eventType === 'DELETE') {
+                    setEmployees(prev => prev.filter(e => e.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        const financialSubscription = supabase
+            .channel('public:employee_financials')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'employee_financials' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setEmployeeFinancials(prev => {
+                        if (prev.some(f => f.id === payload.new.id)) return prev;
+                        const f = payload.new as Record<string, unknown>;
+                        return [{
+                            ...f,
+                            employeeId: f.employee_id,
+                            approvedBy: f.approved_by
+                        } as EmployeeFinancial, ...prev];
+                    });
+                } else if (payload.eventType === 'UPDATE') {
+                    const f = payload.new as Record<string, unknown>;
+                    setEmployeeFinancials(prev => prev.map(fin => fin.id === f.id ? {
+                        ...fin,
+                        ...f,
+                        employeeId: f.employee_id || fin.employeeId,
+                        approvedBy: f.approved_by || fin.approvedBy
+                    } as EmployeeFinancial : fin));
+                } else if (payload.eventType === 'DELETE') {
+                    setEmployeeFinancials(prev => prev.filter(f => f.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        const deliverySubscription = supabase
+            .channel('public:deliveries')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setDeliveries(prev => {
+                        if (prev.some(d => d.id === payload.new.id)) return prev;
+                        const d = payload.new as Record<string, unknown>;
+                        return [{
+                            ...d,
+                            transactionId: d.transaction_id,
+                            vehicleId: d.vehicle_id,
+                            driverId: d.driver_id,
+                            estimatedArrival: d.estimated_arrival,
+                            actualArrival: d.actual_arrival
+                        } as Delivery, ...prev];
+                    });
+                } else if (payload.eventType === 'UPDATE') {
+                    const d = payload.new as Record<string, unknown>;
+                    setDeliveries(prev => prev.map(del => del.id === d.id ? {
+                        ...del,
+                        ...d,
+                        transactionId: d.transaction_id || del.transactionId,
+                        vehicleId: d.vehicle_id || del.vehicleId,
+                        driverId: d.driver_id || del.driverId,
+                        estimatedArrival: d.estimated_arrival || del.estimatedArrival,
+                        actualArrival: d.actual_arrival || del.actualArrival
+                    } as Delivery : del));
+                } else if (payload.eventType === 'DELETE') {
+                    setDeliveries(prev => prev.filter(d => d.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        const vehicleSubscription = supabase
+            .channel('public:vehicles')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setVehicles(prev => {
+                        if (prev.some(v => v.id === payload.new.id)) return prev;
+                        const v = payload.new as Record<string, unknown>;
+                        return [{
+                            ...v,
+                            plateNumber: v.plate_number,
+                            lastMaintenance: v.last_maintenance
+                        } as Vehicle, ...prev];
+                    });
+                } else if (payload.eventType === 'UPDATE') {
+                    const v = payload.new as Record<string, unknown>;
+                    setVehicles(prev => prev.map(veh => veh.id === v.id ? {
+                        ...veh,
+                        ...v,
+                        plateNumber: v.plate_number || veh.plateNumber,
+                        lastMaintenance: v.last_maintenance || veh.lastMaintenance
+                    } as Vehicle : veh));
+                } else if (payload.eventType === 'DELETE') {
+                    setVehicles(prev => prev.filter(v => v.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        const usersSubscription = supabase
+            .channel('public:users')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+                if (payload.eventType === 'UPDATE') {
+                    const u = payload.new as Record<string, unknown>;
+                    const dbRole = (u.role as string || '').toLowerCase();
+                    let normalizedRole = Role.CASHIER;
+                    if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+                    else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+                    else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+                    else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+                    else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+                    else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+                    else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+                    else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+                    else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+                    else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+                    setUsers(prev => prev.map(user => user.id === u.id ? {
+                        ...user,
+                        ...u as unknown as User,
+                        role: normalizedRole,
+                        isApproved: (u.is_approved ?? u.isApproved) as boolean
+                    } : user));
+                }
+            })
+            .subscribe();
+
         const commissionSubscription = supabase
             .channel('public:commissions')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'commissions' }, (payload) => {
@@ -573,38 +771,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             supabase.removeChannel(transactionSubscription);
             supabase.removeChannel(attendanceSubscription);
             supabase.removeChannel(logsSubscription);
+            supabase.removeChannel(usersSubscription);
             supabase.removeChannel(commissionSubscription);
+            supabase.removeChannel(employeeSubscription);
+            supabase.removeChannel(financialSubscription);
+            supabase.removeChannel(deliverySubscription);
+            supabase.removeChannel(vehicleSubscription);
         };
     }
-  }, [
-    isSupabaseConfigured,
-    setAppSettings,
-    setAttendanceHistory,
-    setCattleOrders,
-    setCattlePrices,
-    setCattleTypes,
-    setCommissions,
-    setCustomers,
-    setDebtPayments,
-    setDeliveries,
-    setEmployeeFinancials,
-    setEmployees,
-    setExpenses,
-    setGalleryItems,
-    setLeads,
-    setLoyaltyPrograms,
-    setMarketNotes,
-    setMarketSurveys,
-    setOutlets,
-    setPricePoints,
-    setProducts,
-    setSystemLogs,
-    setTransactions,
-    setUsers,
-    setVehicles,
-    setVisitRecords,
-    setWeighingLogs
-  ]);
+  }, [setProducts, setTransactions, setExpenses, setDebtPayments, setEmployees, setUsers, setAttendanceHistory, setSystemLogs, setCattleTypes, setCustomers, setOutlets, setEmployeeFinancials, setCattleOrders, setVisitRecords, setLeads, setCattlePrices, setDeliveries, setVehicles, setMarketNotes, setPricePoints, setMarketSurveys, setWeighingLogs, setGalleryItems, setLoyaltyPrograms, setCommissions, setAppSettings]);
 
   const approveUser = async (id: string) => {
     try {
@@ -667,9 +842,20 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               estimated_arrival: delivery.estimatedArrival,
               actual_arrival: delivery.actualArrival,
               notes: delivery.notes,
-              proof_image: delivery.proofImage
+              proof_image: delivery.proofImage,
+              current_location: delivery.currentLocation
           }).eq('id', delivery.id);
       }
+  };
+
+  const updateCourierLocation = (location: CourierLocation) => {
+    setCourierLocations(prev => {
+      const exists = prev.find(l => l.userId === location.userId);
+      if (exists) {
+        return prev.map(l => l.userId === location.userId ? location : l);
+      }
+      return [...prev, location];
+    });
   };
 
   const addVehicle = async (vehicle: Vehicle) => {
@@ -866,7 +1052,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {
           console.error("Failed to delete user:", error);
-          showToast("Gagal menghapus user. Silakan coba lagi.", "error");
+          alert("Gagal menghapus user. Silakan coba lagi.");
       }
   };
 
@@ -886,7 +1072,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const distance = calculateDistance(lat, lng, outlet.coordinates.lat, outlet.coordinates.lng);
           
           if (distance > radius) {
-              showToast(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(distance)}m. Maksimal: ${radius}m.`, "error");
+              alert(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(distance)}m. Maksimal: ${radius}m.`);
               return; // Stop check-in
           }
       }
@@ -1041,7 +1227,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (derivedReceivables.length > 0) {
         setReceivables(derivedReceivables);
     }
-  }, [derivedReceivables]);
+  }, [derivedReceivables, setReceivables]);
 
   const updatePrinterConfig = (config: Partial<PrinterConfig>) => {
       setPrinterConfig(prev => ({ ...prev, ...config }));
@@ -1081,6 +1267,239 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (import.meta.env.VITE_SUPABASE_URL) {
         await supabase.from('gallery_items').delete().eq('id', id);
     }
+  };
+
+  const addEmployee = async (employee: Employee) => {
+      setEmployees(prev => [employee, ...prev]);
+      if (import.meta.env.VITE_SUPABASE_URL) {
+          await supabase.from('employees').insert({
+              id: employee.id,
+              name: employee.name,
+              division: employee.division,
+              position: employee.position,
+              status: employee.status,
+              check_in_time: employee.checkInTime,
+              check_out_time: employee.checkOutTime,
+              base_salary: employee.baseSalary,
+              hourly_rate: employee.hourlyRate,
+              is_warehouse_pic: employee.isWarehousePIC,
+              phone: employee.phone,
+              outlet_id: employee.outletId,
+              device_ip: employee.deviceIp
+          });
+      }
+  };
+
+  const updateEmployee = async (employee: Employee) => {
+      setEmployees(prev => prev.map(e => e.id === employee.id ? employee : e));
+      if (import.meta.env.VITE_SUPABASE_URL) {
+          await supabase.from('employees').update({
+              name: employee.name,
+              division: employee.division,
+              position: employee.position,
+              status: employee.status,
+              check_in_time: employee.checkInTime,
+              check_out_time: employee.checkOutTime,
+              base_salary: employee.baseSalary,
+              hourly_rate: employee.hourlyRate,
+              is_warehouse_pic: employee.isWarehousePIC,
+              phone: employee.phone,
+              outlet_id: employee.outletId,
+              device_ip: employee.deviceIp
+          }).eq('id', employee.id);
+      }
+  };
+
+  const deleteEmployee = async (id: string) => {
+      setEmployees(prev => prev.filter(e => e.id !== id));
+      if (import.meta.env.VITE_SUPABASE_URL) {
+          await supabase.from('employees').delete().eq('id', id);
+      }
+  };
+
+  const initializeMeatProducts = async () => {
+      const meatProducts = [
+          { name: 'Daging', price: 140000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Daging HAS', price: 160000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'BR Babat Rawon', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Babat', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Tulang', price: 40000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Tulang Merah', price: 60000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Iga', price: 80000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Kepala', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Limpa / Hati', price: 60000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Daging SOP', price: 100000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Daging Sengkel', price: 130000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Daging Kepala', price: 100000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Paru', price: 70000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Urat Dengkul', price: 75000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Dengkul', price: 100000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Bersihan', price: 60000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Buntut', price: 95000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Kulit', price: 15000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Babat Usus', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Jantung', price: 90000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Kaki', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Tetelan', price: 60000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Gajih Tipis', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+          { name: 'Gajih Lamur', price: 35000, category: ProductCategory.MEAT, unit: 'Kg' },
+      ];
+
+      for (const item of meatProducts) {
+          const existingProduct = products.find(p => p.name === item.name);
+          if (existingProduct) {
+              // Update existing product price
+              await updateProduct({
+                  ...existingProduct,
+                  price: item.price,
+                  costPrice: item.price * 0.8
+              });
+          } else {
+              // Add new product
+              const newProduct: Product = {
+                  id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  name: item.name,
+                  price: item.price,
+                  category: item.category,
+                  unit: item.unit,
+                  stock: 0,
+                  minStock: 5,
+                  description: `Potongan daging ${item.name}`,
+                  image: '',
+                  costPrice: item.price * 0.8,
+                  outletId: outlets[0]?.id || 'main'
+              };
+              await addProduct(newProduct);
+          }
+      }
+  };
+
+  const initializeEmployees = async () => {
+      // Ensure outlets exist
+      const requiredOutlets = [
+          { id: 'o5', name: 'Kantor Pusat', address: 'Kantor Pusat', phone: '', manager: 'Admin' },
+          { id: 'o6', name: 'RPH Subaru', address: 'RPH Subaru', phone: '', manager: 'Admin' },
+          { id: 'o7', name: 'Umum', address: 'Umum', phone: '', manager: 'Admin' },
+          { id: 'o1', name: 'Pasar Tamin', address: 'Pasar Tamin', phone: '', manager: 'Admin' },
+          { id: 'o2', name: 'Pasar Way Halim', address: 'Pasar Way Halim', phone: '', manager: 'Admin' },
+          { id: 'o3', name: 'Pasar Tugu', address: 'Pasar Tugu', phone: '', manager: 'Admin' },
+      ];
+
+      for (const outlet of requiredOutlets) {
+          const existingOutlet = outlets.find(o => o.id === outlet.id);
+          if (!existingOutlet) {
+              await addOutlet(outlet);
+          } else {
+              await updateOutlet({ ...existingOutlet, ...outlet });
+          }
+      }
+
+      // Sync divisions to Supabase if configured
+      if (isSupabaseConfigured) {
+          try {
+              for (const div of divisions) {
+                  const { error } = await supabase
+                      .from('divisions')
+                      .upsert({ name: div }, { onConflict: 'name' });
+                  if (error) console.error('Error syncing division:', error);
+              }
+          } catch (err) {
+              console.error('Supabase division sync failed:', err);
+          }
+      }
+
+      const employeeData = [
+          // DIVISI KANTOR PUSAT
+          { name: 'TAMPAN SUJARWADI', phone: '+6282183118377', position: 'DIREKTUR UTAMA', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'DIAN EKA ARLIANTO, S.IP', phone: '+6281369612006', position: 'MANAGER OPERASIONAL', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'EKO', phone: '+62811111111', position: 'KONSULTAN', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'M. AZMI GHULAM DZAKY', phone: '+62811111111', position: 'DIREKTUR', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'EKI', phone: '+6289649005383', position: 'MANAGER KEUANGAN', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'DESI HERMALA.', phone: '+6281366577909', position: 'ADMIN RPH', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'RUDI YANTO', phone: '+6285166599976', position: 'OFFICER', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'NILAM CAHYA RAMADANI', phone: '+6282294439224', position: 'ADMIN KEUANGAN', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+          { name: 'FAFA', phone: '+6281373132418', position: 'ADMIN KEUANGAN', division: 'DIVISI KANTOR PUSAT', outletId: 'o5' },
+
+          // DIVISI RPH SUBARU
+          { name: 'MANG DODO', phone: '+62895323107782', position: 'KOORDINATOR', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'MUKSIN', phone: '+6285789014800', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'MAMAT', phone: '+6281367936440', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'H. EDI SURYADI', phone: '+6281221306066', position: 'STAF JULEHA', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'SIS', phone: '+62895705115915', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'SETO', phone: '+62895644268577', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'BAMBANG', phone: '+62811111111', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'MANG SOLEH B', phone: '+6285366937691', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'M. NASIR', phone: '+6282185161676', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+          { name: 'MANG NAS', phone: '+62811111111', position: 'STAF', division: 'DIVISI RPH SUBARU', outletId: 'o6' },
+
+          // DIVISI UMUM
+          { name: 'ROBIANSYAH/ REBIN', phone: '+6283146481450', position: 'STAF', division: 'DIVISI UMUM', outletId: 'o7' },
+          { name: 'SADIMAN / SADIMONG', phone: '+62811111111', position: 'STAF', division: 'DIVISI UMUM', outletId: 'o7' },
+          { name: 'KIYAI MANJA / ALPIAN', phone: '+6289602340234', position: 'STAF', division: 'DIVISI UMUM', outletId: 'o7' },
+          { name: 'HADIMAN / DIMAN', phone: '+62811111111', position: 'STAF', division: 'DIVISI UMUM', outletId: 'o7' },
+
+          // DIVISI SUBARU PASAR TAMIN
+          { name: 'MANG SOLEH', phone: '+6285764244933', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'IKHSAN', phone: '+6285382213341', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'RAYHAN', phone: '+628975369231', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'ANDA', phone: '+62895620474051', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'REZA', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'TUM', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'ARIS GIANTO', phone: '+6289652939311', position: 'PIC', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'SUKRON', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'AMIN', phone: '+62895403397525', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'FAUZAN', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'PIAN', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'BAIN', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'TAUFIK', phone: '+628986658363', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'ENDANG', phone: '+6289528885448', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+          { name: 'FAHMI', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR TAMIN', outletId: 'o1' },
+
+          // DIVISI SUBARU PASAR WAY HALIM
+          { name: 'M. NAUFAL AL FARUQ', phone: '+6289632544456', position: 'PIC', division: 'DIVISI SUBARU PASAR WAY HALIM', outletId: 'o2' },
+          { name: 'SUHAERLI/MANG LILI', phone: '+628980563652', position: 'STAF', division: 'DIVISI SUBARU PASAR WAY HALIM', outletId: 'o2' },
+          { name: 'DEDY HARYANTO', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR WAY HALIM', outletId: 'o2' },
+          { name: 'DAUD', phone: '+62811111111', position: 'STAF', division: 'DIVISI SUBARU PASAR WAY HALIM', outletId: 'o2' },
+
+          // DIVISI SUBARU PASAR TUGU
+          { name: 'HERI', phone: '+6289514077980', position: 'SALESMAN', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+          { name: 'AL IMRON', phone: '+6285381132000', position: 'PIC/SALESMAN', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+          { name: 'ANJAR', phone: '+6289510280473', position: 'STAF', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+          { name: 'EMI', phone: '+6283152792686', position: 'STAF', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+          { name: 'ROHMAN', phone: '+628978692422', position: 'STAF', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+          { name: 'DANI', phone: '+6281379681346', position: 'STAF', division: 'DIVISI SUBARU PASAR TUGU', outletId: 'o3' },
+      ];
+
+      for (const item of employeeData) {
+          const existingEmployee = employees.find(e => e.name === item.name);
+          if (existingEmployee) {
+              // Update existing employee
+              await updateEmployee({
+                  ...existingEmployee,
+                  phone: item.phone,
+                  position: item.position,
+                  division: item.division,
+                  outletId: item.outletId
+              });
+          } else {
+              // Add new employee
+              const newEmployee: Employee = {
+                  id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  name: item.name,
+                  phone: item.phone,
+                  position: item.position,
+                  division: item.division,
+                  outletId: item.outletId,
+                  status: 'Absen',
+                  checkInTime: '',
+                  checkOutTime: '',
+                  baseSalary: 0,
+                  hourlyRate: 0,
+                  deviceIp: ''
+              };
+              await addEmployee(newEmployee);
+          }
+      }
   };
 
   const addLoyaltyProgram = async (program: LoyaltyProgram) => {
@@ -1428,6 +1847,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }
 
+  const deleteOutlet = async (id: string) => {
+    const outlet = outlets.find(o => o.id === id);
+    if (outlet?.isStatic) return;
+    setOutlets(prev => prev.filter(o => o.id !== id));
+    if (import.meta.env.VITE_SUPABASE_URL) {
+        await supabase.from('outlets').delete().eq('id', id);
+    }
+  }
+
   const updateRolePermissions = async (permissions: RolePermissions[]) => {
       setAppSettings(prev => ({ ...prev, rolePermissions: permissions }));
       if (import.meta.env.VITE_SUPABASE_URL) {
@@ -1564,6 +1992,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         commissions,
         setProducts,
         setEmployees, 
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
         setCustomers,
         setUsers,
         setCommissions,
@@ -1575,6 +2006,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         deleteCattleOrder,
         addOutlet,
         updateOutlet,
+        deleteOutlet,
         updateRolePermissions,
         addNotification,
         addVisitRecord,
@@ -1596,8 +2028,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         payReceivable,
         deliveries,
         vehicles,
+        courierLocations,
         addDelivery,
         updateDelivery,
+        updateCourierLocation,
         addVehicle,
         marketNotes,
         addMarketNote,
@@ -1611,11 +2045,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         attendanceHistory,
         suppliers,
         setSuppliers,
+        divisions,
+        setDivisions,
         collectionTarget,
         setCollectionTarget,
         addProduct,
         updateProduct,
         deleteProduct,
+        initializeMeatProducts,
+        initializeEmployees,
         approveUser,
         customerMode,
         setCustomerMode,
@@ -1630,21 +2068,48 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setNavigationParams,
         galleryItems,
         loyaltyPrograms,
-        toasts,
-        showToast,
         addGalleryItem,
         updateGalleryItem,
         deleteGalleryItem,
         addLoyaltyProgram,
         updateLoyaltyProgram,
         deleteLoyaltyProgram,
-        isLoading
+        isLoading,
+        confirm
     }}>
       {children}
+      {confirmOptions && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-[#1e1e1e] border border-white/10 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-white">{confirmOptions.title}</h3>
+              <p className="mt-2 text-gray-400 leading-relaxed">{confirmOptions.message}</p>
+            </div>
+            <div className="flex border-t border-white/5">
+              <button
+                onClick={() => setConfirmOptions(null)}
+                className="flex-1 px-6 py-4 text-sm font-semibold text-gray-500 transition-colors hover:bg-white/5 active:bg-white/10"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  confirmOptions.onConfirm();
+                  setConfirmOptions(null);
+                }}
+                className="flex-1 bg-brand-red px-6 py-4 text-sm font-bold text-white transition-colors hover:bg-red-700 active:bg-red-800"
+              >
+                Konfirmasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </StoreContext.Provider>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useStore = () => {
   const context = useContext(StoreContext);
   if (context === undefined) {

@@ -20,7 +20,6 @@ import LoginModal from './components/LoginModal';
 import WelcomeModal from './components/WelcomeModal';
 import AIChatbot from './components/AIChatbot';
 import Accounting from './components/Accounting';
-import ToastContainer from './components/ToastContainer';
 import DirectorPrivate from './components/DirectorPrivate';
 import { User, Role, SystemLog } from './types';
 import { StoreProvider, useStore } from './StoreContext';
@@ -64,7 +63,7 @@ const AppContent = () => {
         if (sessionUser) {
           setUser(sessionUser);
           // Restore view based on role if needed, or default to dashboard
-          if (sessionUser.role === Role.CASHIER) {
+          if (sessionUser.role === Role.CASHIER || sessionUser.role === Role.STAFF || sessionUser.role === Role.RPH_ADMIN) {
               setCurrentView('pos');
           } else if (sessionUser.role === Role.SALES || sessionUser.role === Role.DEBT_COLLECTOR) {
               setCurrentView('field_ops');
@@ -110,7 +109,7 @@ const AppContent = () => {
     setIsLoginOpen(false);
     
     // Set default view based on role
-    if (selectedUser.role === Role.CASHIER) {
+    if (selectedUser.role === Role.CASHIER || selectedUser.role === Role.STAFF || selectedUser.role === Role.RPH_ADMIN) {
       setCurrentView('pos');
     } else if (selectedUser.role === Role.SALES || selectedUser.role === Role.DEBT_COLLECTOR) {
       setCurrentView('field_ops');
@@ -191,10 +190,10 @@ const AppContent = () => {
       case 'archive': return <Archive user={user!} />;
       case 'history': return <HistoryLog user={user!} />;
       case 'inventory': 
-        if (user?.role === Role.ADMIN) return <Inventory user={user!} />;
+        if (user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.STAFF) return <Inventory user={user!} />;
         return <Dashboard />;
       case 'pos': 
-        if (user?.role === Role.CASHIER || user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR || user?.role === Role.RPH_ADMIN) {
+        if (user?.role === Role.CASHIER || user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR || user?.role === Role.RPH_ADMIN || user?.role === Role.STAFF) {
             return <POS user={user!} />;
         }
         return <Dashboard />;
@@ -202,9 +201,9 @@ const AppContent = () => {
         if (user?.role === Role.ADMIN) return <Finance user={user!} />;
         return <Dashboard />;
       case 'hr': return <HR user={user!} />;
+      case 'distribution': return <Distribution user={user!} />;
       case 'contacts': return <Stakeholders user={user!} />;
       case 'field_ops': return <FieldOps user={user!} />; 
-      case 'distribution': return <Distribution />;
       case 'market_analysis': return <MarketAnalysis />;
       case 'commissions': return <CommissionDashboard user={user!} />;
       case 'accounting': return <Accounting user={user!} />;
@@ -240,7 +239,6 @@ const AppContent = () => {
           }} 
         />
         {customerMode && <AIChatbot />}
-        <ToastContainer />
       </>
     );
   }
@@ -253,7 +251,6 @@ const AppContent = () => {
       onNavigate={setCurrentView}
     >
       {renderView()}
-      <ToastContainer />
     </AdminLayout>
   );
 }

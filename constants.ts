@@ -3,8 +3,8 @@ import { Product, Role, User, Employee, BankMutation, Transaction, Customer, Sup
 export const MOCK_OUTLETS: Outlet[] = [];
 
 export const MOCK_USERS: User[] = [
-  { id: 'u0', name: 'Super Admin', username: 'admin', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=admin' },
-  { id: 'u3', name: 'Rudi AF', username: 'rudiaf', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=3', employeeId: 'EMP-006' },
+  { id: 'u0', name: 'Super Admin', username: 'admin', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=admin', isApproved: true },
+  { id: 'u3', name: 'Rudi AF', username: 'rudiaf', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=3', employeeId: 'EMP-006', isApproved: true },
 ];
 
 export const MOCK_VISIT_RECORDS: VisitRecord[] = [];

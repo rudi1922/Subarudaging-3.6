@@ -6,8 +6,10 @@ export enum Role {
   RPH_ADMIN = 'Admin RPH',
   SALES = 'Sales Marketing',
   DEBT_COLLECTOR = 'Debt Collector',
+  STAFF = 'Staff',
   CUSTOMER = 'Pelanggan',
-  PUBLIC = 'Public'
+  PUBLIC = 'Public',
+  COURIER = 'Kurir'
 }
 
 export interface Outlet {
@@ -17,6 +19,7 @@ export interface Outlet {
   phone?: string;
   coordinates?: { lat: number; lng: number };
   radius: number; // Required radius
+  isStatic?: boolean; // Added isStatic
 }
 
 export interface RolePermissions {
@@ -68,7 +71,8 @@ export enum ProductCategory {
   BONE = 'Tulangan',
   FAT = 'Lemak/Gajih',
   OTHER = 'Lain-lain',
-  PROMO = 'Daging Promo'
+  PROMO = 'Daging Promo',
+  MEAT = 'Daging'
 }
 
 export interface Product {
@@ -116,7 +120,13 @@ export interface Transaction {
   cashier?: string;
 }
 
-export type Division = 'RPH Subaru' | 'Kantor Admin' | 'Subaru Tamin' | 'Subaru Way Halim' | 'Bagian Umum' | 'Tim Sales' | 'Tim Penagihan';
+export type Division = 
+  | 'DIVISI KANTOR PUSAT' 
+  | 'DIVISI RPH SUBARU' 
+  | 'DIVISI SUBARU PASAR TAMIN' 
+  | 'DIVISI SUBARU PASAR WAY HALIM' 
+  | 'DIVISI SUBARU PASAR TUGU' 
+  | 'DIVISI UMUM';
 
 export interface Employee {
   id: string;
@@ -349,9 +359,12 @@ export interface PrinterConfig {
 
 export interface Vehicle {
   id: string;
+  name: string;
   plateNumber: string;
-  type: 'Motor' | 'Pickup' | 'Truk Engkel' | 'Truk Pendingin';
-  status: 'Tersedia' | 'Dalam Pengiriman' | 'Perbaikan';
+  type: 'Motor' | 'Pickup' | 'Truk Engkel' | 'Truk Pendingin' | 'Truck';
+  status: 'Available' | 'In Use' | 'Maintenance' | 'Tersedia' | 'Dalam Pengiriman' | 'Perbaikan';
+  capacity: number;
+  lastMaintenance: string;
   driverId?: string; // Assigned Driver
 }
 
@@ -367,6 +380,16 @@ export interface Delivery {
   endTime?: string;
   notes?: string;
   proofImage?: string;
+  currentLocation?: { lat: number; lng: number };
+}
+
+export interface CourierLocation {
+  userId: string;
+  userName: string;
+  lat: number;
+  lng: number;
+  lastUpdate: string;
+  status: 'Online' | 'Offline' | 'Busy';
 }
 
 export interface MarketNote {
@@ -488,11 +511,4 @@ export interface ReceiptData {
     };
     earnings?: { label: string; value: number }[];
     deductions?: { label: string; value: number }[];
-}
-
-export interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  duration?: number;
 }
