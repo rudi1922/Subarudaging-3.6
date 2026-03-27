@@ -13,7 +13,7 @@ export const authenticateUser = async (username: string, password: string): Prom
   try {
     // 1. Try Supabase (Primary)
     if (import.meta.env.VITE_SUPABASE_URL) {
-        let userDetails: any = null;
+        let userDetails: Record<string, unknown> | null = null;
 
         // OPTION A: Using Supabase Auth (Requires Email)
         if (username.includes('@')) {
@@ -47,7 +47,8 @@ export const authenticateUser = async (username: string, password: string): Prom
 
         if (userDetails) {
             // CHECK APPROVAL STATUS
-            if (userDetails.is_approved === false || userDetails.isApproved === false) {
+            const isApproved = userDetails.is_approved ?? userDetails.isApproved;
+            if (isApproved === false) {
                 throw new Error('Menunggu Persetujuan Admin');
             }
 
@@ -59,10 +60,12 @@ export const authenticateUser = async (username: string, password: string): Prom
             else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
             else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
             else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
-            else if (dbRole === 'sales' || dbRole === 'sales marketing') normalizedRole = Role.SALES;
+            else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+            else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
             else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
-            else if (dbRole === 'rph_admin' || dbRole === 'admin rph') normalizedRole = Role.RPH_ADMIN;
+            else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
             else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+            else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
 
             const user: User = {
                 id: userDetails.id,
@@ -95,9 +98,9 @@ export const authenticateUser = async (username: string, password: string): Prom
     }
 
     return null;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Login error:', error);
-    if (error.message === 'Menunggu Persetujuan Admin') {
+    if (error instanceof Error && error.message === 'Menunggu Persetujuan Admin') {
         throw error;
     }
     return null;
@@ -113,12 +116,47 @@ export const verifySession = async (): Promise<User | null> => {
           const { data } = await supabase.auth.getSession();
           if (data.session) {
               // Fetch user details
-               const { data: userDetails } = await supabase
+                const { data: userDetails } = await supabase
                     .from('users')
                     .select('*')
                     .eq('id', data.session.user.id)
                     .single();
-                if (userDetails) return userDetails as User;
+                
+                if (userDetails) {
+                    // CHECK APPROVAL STATUS
+                    const isApproved = userDetails.is_approved ?? userDetails.isApproved;
+                    if (isApproved === false) {
+                        localStorage.removeItem('auth_token');
+                        return null;
+                    }
+
+                    // Normalize role
+                    let normalizedRole = Role.CASHIER;
+                    const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
+                    
+                    if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+                    else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+                    else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+                    else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+                    else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+                    else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+                    else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+                    else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+                    else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+                    else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+                    return {
+                        id: userDetails.id,
+                        name: userDetails.name,
+                        username: userDetails.username,
+                        role: normalizedRole,
+                        avatar: userDetails.avatar || undefined, 
+                        employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
+                        outletId: userDetails.outlet_id || userDetails.outletId || undefined,
+                        isApproved: true,
+                        referralCode: userDetails.referral_code || userDetails.referralCode || undefined
+                    } as User;
+                }
           }
       } catch (error) {
           console.error('Supabase session check failed:', error);
@@ -139,7 +177,14 @@ export const verifySession = async (): Promise<User | null> => {
               .single();
           
           if (userDetails) {
-              // Normalize role (same logic as authenticateUser)
+              // CHECK APPROVAL STATUS
+              const isApproved = userDetails.is_approved ?? userDetails.isApproved;
+              if (isApproved === false) {
+                  localStorage.removeItem('auth_token');
+                  return null;
+              }
+
+              // Normalize role
               let normalizedRole = Role.CASHIER;
               const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
               
@@ -147,10 +192,12 @@ export const verifySession = async (): Promise<User | null> => {
               else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
               else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
               else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
-              else if (dbRole === 'sales' || dbRole === 'sales marketing') normalizedRole = Role.SALES;
+              else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+              else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
               else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
-              else if (dbRole === 'rph_admin' || dbRole === 'admin rph') normalizedRole = Role.RPH_ADMIN;
+              else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
               else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+              else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
 
               return {
                   id: userDetails.id,
