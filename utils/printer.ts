@@ -109,6 +109,36 @@ export class PrinterService {
     addTextLine(this.createLine(width));
     add(COMMANDS.ALIGN_LEFT);
 
+    // --- PRINTING DATA (REPORTS) ---
+    if ('columns' in data && 'rows' in data) {
+        const report = data as PrintingData;
+        add(COMMANDS.TEXT_BOLD_ON);
+        addTextLine(report.title);
+        add(COMMANDS.TEXT_NORMAL);
+        addTextLine(this.createLine(width));
+        
+        // Header
+        let headerLine = '';
+        report.columns.forEach((col, idx) => {
+            headerLine += col.substring(0, 8).padEnd(8);
+            if (idx < report.columns.length - 1) headerLine += ' ';
+        });
+        add(COMMANDS.TEXT_BOLD_ON);
+        addTextLine(headerLine.substring(0, width));
+        add(COMMANDS.TEXT_BOLD_OFF);
+        addTextLine(this.createLine(width));
+
+        // Rows
+        report.rows.forEach(row => {
+            let rowLine = '';
+            row.forEach((cell, idx) => {
+                rowLine += String(cell).substring(0, 8).padEnd(8);
+                if (idx < row.length - 1) rowLine += ' ';
+            });
+            addTextLine(rowLine.substring(0, width));
+        });
+        addTextLine(this.createLine(width));
+    }
     // --- EXPENSE RECEIPT (GAJI, OPERASIONAL) ---
     if (data.expense) {
         addTextLine(`Tgl: ${data.date}`);
@@ -260,7 +290,11 @@ export class PrinterService {
   public async print(data: ReceiptData | PrintingData): Promise<void> {
     const configCheck = this.checkConfig();
     if (!configCheck.ready && this.config.connection !== PrinterConnection.SYSTEM) {
-        throw new Error('PRINTER_NOT_CONFIGURED');
+        const proceed = window.confirm(`${configCheck.message}\n\nLanjutkan menggunakan dialog cetak sistem (Browser)?`);
+        if (!proceed) return;
+        // Fallback to system print
+        window.print();
+        return;
     }
 
     if (this.config.connection === PrinterConnection.SYSTEM) {
@@ -339,8 +373,7 @@ export class PrinterService {
             const buffer = this.generateThermalReceiptBuffer(data as ReceiptData);
             await this.sendBluetoothData(characteristic, buffer);
             
-            // alert("Cetak Berhasil via Bluetooth!");
-            console.warn("Cetak Berhasil via Bluetooth!");
+            alert("Cetak Berhasil via Bluetooth!");
             if (device.gatt.connected) {
                 device.gatt.disconnect();
             }
@@ -352,7 +385,7 @@ export class PrinterService {
              return;
         }
         console.error('Bluetooth Print Error:', error);
-        throw new Error('Gagal mencetak ke Bluetooth. Pastikan perangkat aktif dan browser mendukung.');
+        alert('Gagal mencetak ke Bluetooth. Pastikan perangkat aktif dan browser mendukung.');
       }
     } else if (this.config.connection === PrinterConnection.USB) {
         try {
@@ -369,8 +402,7 @@ export class PrinterService {
             
             // Endpoint number might vary, usually 1 or 2 for OUT
             await device.transferOut(1, buffer);
-            // alert("Cetak Berhasil via USB!");
-            console.warn("Cetak Berhasil via USB!");
+            alert("Cetak Berhasil via USB!");
             await device.close();
         } catch (error: unknown) {
             const err = error as Error;
@@ -379,7 +411,7 @@ export class PrinterService {
                  return;
             }
             console.error('USB Print Error:', error);
-            throw new Error('Gagal mencetak ke USB. Pastikan kabel terhubung dan izin diberikan.');
+            alert('Gagal mencetak ke USB. Pastikan kabel terhubung dan izin diberikan.');
         }
     }
   }
