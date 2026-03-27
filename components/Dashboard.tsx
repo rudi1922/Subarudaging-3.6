@@ -175,29 +175,35 @@ const Dashboard: React.FC = () => {
                 </td>
               </tr>
               {/* Per Outlet Rows */}
-              {useStore().outlets.map(outlet => {
-                const outletTransactions = safeTransactions.filter(t => t.outletId === outlet.id);
-                const outletExpenses = safeExpenses.filter(e => e.outletId === outlet.id);
-                const rev = outletTransactions.reduce((sum, t) => sum + (t.total || 0), 0);
-                const exp = outletExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-                const hpp = rev * 0.7; // Estimated COGS at 70%
-                const profit = rev - exp - hpp;
-                
-                return (
-                  <tr key={outlet.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4 text-gray-300">{outlet.name}</td>
-                    <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {rev.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {exp.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right text-gray-500 font-mono">Rp {hpp.toLocaleString()}</td>
-                    <td className={`px-6 py-4 text-right font-mono ${profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      Rp {profit.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className={`w-2 h-2 rounded-full mx-auto ${profit >= 0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {useStore().outlets
+                .filter(outlet => 
+                  outlet.name.toLowerCase().includes('pasar tamin') || 
+                  outlet.name.toLowerCase().includes('pasar wayhalim') || 
+                  outlet.name.toLowerCase().includes('pasar tugu')
+                )
+                .map(outlet => {
+                  const outletTransactions = safeTransactions.filter(t => t.outletId === outlet.id);
+                  const outletExpenses = safeExpenses.filter(e => e.outletId === outlet.id);
+                  const rev = outletTransactions.reduce((sum, t) => sum + (t.total || 0), 0);
+                  const exp = outletExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+                  const hpp = rev * 0.7; // Estimated COGS at 70%
+                  const profit = rev - exp - hpp;
+                  
+                  return (
+                    <tr key={outlet.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-4 text-gray-300">{outlet.name}</td>
+                      <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {rev.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right text-gray-400 font-mono">Rp {exp.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right text-gray-500 font-mono">Rp {hpp.toLocaleString()}</td>
+                      <td className={`px-6 py-4 text-right font-mono ${profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        Rp {profit.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className={`w-2 h-2 rounded-full mx-auto ${profit >= 0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

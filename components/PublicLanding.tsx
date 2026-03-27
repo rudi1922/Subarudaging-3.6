@@ -6,10 +6,11 @@ import { calculateDistance } from '../utils/location';
 
 // Coordinates
 const LOCATIONS = [
-    { name: 'Kantor Admin', lat: -5.4144, lng: 105.2632 },
-    { name: 'RPH Subaru', lat: -5.3587, lng: 105.3181 },
-    { name: 'Subaru Tamin', lat: -5.4187, lng: 105.2483 },
-    { name: 'Subaru Way Halim', lat: -5.3881, lng: 105.2714 }
+    { name: 'DIVISI KANTOR PUSAT', lat: -5.4144, lng: 105.2632 },
+    { name: 'DIVISI RPH SUBARU', lat: -5.3587, lng: 105.3181 },
+    { name: 'DIVISI SUBARU PASAR TAMIN', lat: -5.4187, lng: 105.2483 },
+    { name: 'DIVISI SUBARU PASAR WAY HALIM', lat: -5.3881, lng: 105.2714 },
+    { name: 'DIVISI SUBARU PASAR TUGU', lat: -5.4000, lng: 105.2500 }
 ];
 const MAX_RADIUS_METERS = 5; // 5 meters tolerance as requested
 
@@ -19,9 +20,9 @@ interface PublicLandingProps {
 }
 
 const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelangganClick }) => {
-  const { employees, checkInEmployee, addLead, addSystemLog, appSettings, products, customerMode, setCustomerMode, galleryItems, showToast } = useStore();
+  const { employees, checkInEmployee, addLead, addSystemLog, appSettings, products, customerMode, setCustomerMode, galleryItems } = useStore();
   const [activeModal, setActiveModal] = useState<'order' | 'sales' | 'offer' | 'success' | 'checkin' | 'referral' | 'privacy' | 'terms' | 'career' | 'loyalty' | 'article' | null>(null);
-  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [selectedArticle, setSelectedArticle] = useState<GalleryItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Form States
@@ -53,7 +54,7 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
   
   const handleCheckInSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployeeId) return showToast('Pilih nama Anda', 'error');
+    if (!selectedEmployeeId) return alert('Pilih nama Anda');
     
     const emp = (employees || []).find(e => e.id === selectedEmployeeId);
     if (!emp) return;
@@ -83,7 +84,7 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
             }
 
             if (!isWithinRange) {
-                showToast(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(minDistance)}m. Maksimal: ${MAX_RADIUS_METERS}m.`, 'error');
+                alert(`Anda berada di luar radius kantor/gerai! Jarak terdekat: ${Math.round(minDistance)}m. Maksimal: ${MAX_RADIUS_METERS}m.`);
                 setIsSubmitting(false);
                 return;
             }
@@ -110,13 +111,14 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
 
             setIsSubmitting(false);
             setActiveModal('success');
+            // alert(`Absensi ${checkInType} Berhasil! Lokasi: ${nearestLocation} (${Math.round(minDistance)}m)`);
 
         }, () => {
-            showToast("Gagal mendapatkan lokasi GPS. Pastikan GPS aktif.", 'error');
+            alert("Gagal mendapatkan lokasi GPS. Pastikan GPS aktif.");
             setIsSubmitting(false);
         });
     } else {
-        showToast("Browser tidak mendukung Geolocation.", 'error');
+        alert("Browser tidak mendukung Geolocation.");
         setIsSubmitting(false);
     }
   };
@@ -558,12 +560,7 @@ const PublicLanding: React.FC<PublicLandingProps> = ({ onLoginClick, onPelanggan
                   <h2 className="text-3xl md:text-5xl font-serif font-bold text-black">gallery subaru daging sapi</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {((galleryItems && galleryItems.length > 0) ? galleryItems : [
-                      { id: 'g1', title: 'Proses Produksi Higienis', subtitle: 'Standar keamanan pangan internasional', imageUrl: "https://images.unsplash.com/photo-1558030006-450675393462?q=80&w=1200", date: '01 Mar 2026', category: 'Produksi', content: 'Kami menerapkan standar HACCP dalam setiap proses produksi daging sapi kami...' },
-                      { id: 'g2', title: 'Distribusi Armada', subtitle: 'Pengiriman tepat waktu', imageUrl: "https://images.unsplash.com/photo-1615937657715-bc7b4b7962c1?q=80&w=600", date: '28 Feb 2026', category: 'Logistik', content: 'Armada kami dilengkapi dengan pendingin untuk menjaga kualitas daging tetap segar...' },
-                      { id: 'g3', title: 'Kunjungan Dinas', subtitle: 'Sinergi dengan pemerintah', imageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600", date: '25 Feb 2026', category: 'Kegiatan', content: 'Menerima kunjungan dari Dinas Peternakan untuk peninjauan standar RPH...' },
-                      { id: 'g4', title: 'Kualitas Premium', subtitle: 'Daging pilihan terbaik', imageUrl: "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=80&w=1200", date: '20 Feb 2026', category: 'Produk', content: 'Setiap potongan daging melewati kontrol kualitas yang ketat sebelum dipasarkan...' }
-                      ]).map((item, idx) => (
+                  {galleryItems.map((item, idx) => (
                       <div 
                         key={item.id}
                         onClick={() => {

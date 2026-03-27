@@ -8,7 +8,7 @@ interface CommissionDashboardProps {
 }
 
 const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
-  const { commissions, users, addSystemLog, showToast } = useStore();
+  const { commissions, users, addSystemLog } = useStore();
   const [copied, setCopied] = React.useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
   const [withdrawAmount, setWithdrawAmount] = React.useState<number>(0);
@@ -30,7 +30,7 @@ const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
 
   const handleWithdraw = () => {
     if (withdrawAmount > availableEarnings) {
-      showToast('Saldo tidak mencukupi!', 'error');
+      alert('Saldo tidak mencukupi!');
       return;
     }
     
@@ -48,7 +48,7 @@ const CommissionDashboard: React.FC<CommissionDashboardProps> = ({ user }) => {
       device: 'Web'
     });
 
-    showToast('Permintaan penarikan berhasil dikirim! Admin akan memproses dalam 1-3 hari kerja.', 'success');
+    alert('Permintaan penarikan berhasil dikirim! Admin akan memproses dalam 1-3 hari kerja.');
     setShowWithdrawModal(false);
     setWithdrawAmount(0);
     setWithdrawDetails('');

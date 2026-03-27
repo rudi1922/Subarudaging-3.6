@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Search, Plus, ArrowRightLeft, X as XIcon, Trash2, Beef, Package, Truck, Scale, Printer } from 'lucide-react';
-import { Product, ProductCategory, CattleOrder, PrinterConnection, User as UserType, Role } from '../types';
+import { Search, Plus, ArrowRightLeft, X as XIcon, Trash2, Beef, Package, Truck, Scale, Printer, Download } from 'lucide-react';
+import { Product, ProductCategory, CattleOrder, PrinterConnection, User as UserType, Role, GalleryItem } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
 import { PrinterService } from '../utils/printer';
+import { Image as ImageIcon, Edit2 } from 'lucide-react';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface InventoryProps {
   user?: UserType;
@@ -116,8 +119,9 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const { 
     products, cattleOrders, addCattleOrder, updateCattleOrder, deleteCattleOrder, 
     searchQuery, outlets, transferStock, printerConfig, addSystemLog, 
-    addProduct, updateProduct, deleteProduct,
-    navigationParams, setNavigationParams, showToast 
+    addProduct, updateProduct, deleteProduct, confirm,
+    galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem,
+    navigationParams, setNavigationParams 
   } = useStore();
   const canViewCost = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR;
   const canManageProducts = user?.role === Role.ADMIN || user?.role === Role.MANAGER || user?.role === Role.DIRECTOR;
@@ -133,8 +137,11 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCattleModalOpen, setIsCattleModalOpen] = useState(false);
+  const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingGallery, setEditingGallery] = useState<GalleryItem | null>(null);
   const [formData, setFormData] = useState<Partial<Product>>({ name: '', category: ProductCategory.PREMIUM, price: 0, stock: 0, minStock: 5, unit: 'kg', description: '', image: '' });
+  const [galleryFormData, setGalleryFormData] = useState<Partial<GalleryItem>>({ title: '', subtitle: '', imageUrl: '', category: '', content: '' });
   const [transferData, setTransferData] = useState({ productId: '', quantity: 0, toOutlet: 'TAMIN-01' });
   const [editingCattle, setEditingCattle] = useState<CattleOrder | null>(null);
   const [cattleForm, setCattleForm] = useState<Partial<CattleOrder>>({ supplierName: '', orderDate: '', quantity: 0, weightType: '', healthCondition: '', arrivalDate: '', driverName: '', vehiclePlate: '', slaughterDate: '', slaughteredCount: 0, totalLiveWeight: 0, totalCarcassWeight: 0, distribution: { taminTime: '', wayHalimTime: '', officeTime: '' } });
@@ -144,7 +151,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const [selectedPO, setSelectedPO] = useState<CattleOrder | null>(null);
 
   const handlePrintPO = (order: CattleOrder) => {
-      if (printerConfig.connection === PrinterConnection.BLUETOOTH) {
+      if (printerConfig.connection === PrinterConnection.BLUETOOTH || printerConfig.connection === PrinterConnection.USB) {
           const printData = {
               transactionId: order.id,
               date: order.orderDate,
@@ -176,15 +183,21 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
 
   const handleOpenAdd = () => { setEditingProduct(null); setFormData({ name: '', category: ProductCategory.PREMIUM, price: 0, stock: 0, minStock: 5, unit: 'kg', description: '', image: '' }); setIsProductModalOpen(true); };
   const handleOpenEdit = (product: Product) => { setEditingProduct(product); setFormData({ ...product }); setIsProductModalOpen(true); };
-  const handleDelete = (id: string) => {
-    setConfirmData({
-      isOpen: true,
+  const handleDelete = (id: string) => { 
+    confirm({
       title: 'Hapus Produk',
       message: 'Apakah Anda yakin ingin menghapus produk ini?',
-      onConfirm: () => {
-        deleteProduct(id);
-        showToast('Produk berhasil dihapus', 'success');
-      }
+      onConfirm: () => deleteProduct(id)
+    });
+  };
+
+  const handleOpenAddGallery = () => { setEditingGallery(null); setGalleryFormData({ title: '', subtitle: '', imageUrl: '', category: '', content: '' }); setIsGalleryModalOpen(true); };
+  const handleOpenEditGallery = (item: GalleryItem) => { setEditingGallery(item); setGalleryFormData({ ...item }); setIsGalleryModalOpen(true); };
+  const handleDeleteGallery = (id: string) => { 
+    confirm({
+      title: 'Hapus Item Katalog',
+      message: 'Apakah Anda yakin ingin menghapus item katalog visual ini?',
+      onConfirm: () => deleteGalleryItem(id)
     });
   };
 
@@ -249,7 +262,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
     
     if (!product) return;
     if (product.stock < transferData.quantity) {
-      showToast('Stok tidak mencukupi untuk transfer!', 'error');
+      alert('Stok tidak mencukupi untuk transfer!');
       return;
     }
 
@@ -271,7 +284,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
         });
     }
 
-    showToast(`Sukses! Transfer ${transferData.quantity} ${product.unit} ${product.name} sedang diproses.`, 'success');
+    alert(`Sukses! Transfer ${transferData.quantity} ${product.unit} ${product.name} sedang diproses.`);
     setIsTransferModalOpen(false);
   };
 
@@ -282,13 +295,11 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   };
 
   const handleDeleteCattle = (id: string) => {
-    setConfirmData({
-      isOpen: true,
-      title: 'Hapus PO Sapi',
+    confirm({
+      title: 'Hapus Data PO Sapi',
       message: 'Apakah Anda yakin ingin menghapus data PO Sapi ini?',
       onConfirm: () => {
         deleteCattleOrder(id);
-        showToast('Data PO Sapi berhasil dihapus', 'success');
       }
     });
   };
@@ -342,7 +353,71 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
     setCattleForm({ supplierName: '', orderDate: '', quantity: 0, weightType: '', healthCondition: '', arrivalDate: '', driverName: '', vehiclePlate: '', slaughterDate: '', slaughteredCount: 0, totalLiveWeight: 0, totalCarcassWeight: 0, distribution: { taminTime: '', wayHalimTime: '', officeTime: '' } });
   }
 
-  const handlePrintStock = () => { window.print(); };
+  const handlePrintStock = () => {
+    if (printerConfig.connection === PrinterConnection.SYSTEM) {
+      window.print();
+    } else {
+      const printData: PrintingData = {
+        title: 'LAPORAN STOK INVENTARIS',
+        columns: ['Produk', 'Stok', 'Harga'],
+        rows: filtered.map(p => [p.name.substring(0,10), `${p.stock} ${p.unit}`, p.price.toLocaleString()])
+      };
+      printerService.print(printData);
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+
+      // Header
+      doc.setFontSize(20);
+      doc.text('SUBARU DAGING SAPI', pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(14);
+      doc.text('LAPORAN STOK INVENTARIS', pageWidth / 2, 28, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, pageWidth / 2, 34, { align: 'center' });
+
+      // Table
+      const tableColumn = ["Nama Produk", "Kategori", "Stok", "Unit", "Harga Jual"];
+      const tableRows = filtered.map(p => [
+        p.name,
+        p.category,
+        p.stock.toString(),
+        p.unit,
+        `Rp ${p.price.toLocaleString()}`
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 38, 38] }, // Brand Red
+        styles: { fontSize: 9 }
+      });
+
+      doc.save(`Laporan_Stok_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      alert('Gagal mengekspor PDF. Silakan coba lagi.');
+    }
+  };
+
+  const handleSaveGallery = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingGallery) {
+      updateGalleryItem({ ...editingGallery, ...galleryFormData } as GalleryItem);
+    } else {
+      addGalleryItem({
+        ...galleryFormData as GalleryItem,
+        id: `g-${Date.now()}`,
+        date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+      });
+    }
+    setIsGalleryModalOpen(false);
+  };
   const effectiveSearch = searchQuery || localSearch;
   const filtered = products.filter(p => {
     return (p.name.toLowerCase().includes(effectiveSearch.toLowerCase()) || p.batchNumber?.toLowerCase().includes(effectiveSearch.toLowerCase())) &&
@@ -364,10 +439,13 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           {activeTab === 'products' ? (
              <>
+               <button onClick={handleExportPDF} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-white/10 text-white rounded-lg text-sm flex justify-center border border-white/10 hover:bg-white/20 transition-colors"><Download size={16} /> Export PDF</button>
                <button onClick={handlePrintStock} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-white text-black font-bold rounded-lg text-sm flex justify-center"><Printer size={16} /> Laporan</button>
                <button onClick={() => setIsTransferModalOpen(true)} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-[#2a2a2a] text-white rounded-lg border border-white/10 text-sm flex justify-center"><ArrowRightLeft size={16} /> Transfer</button>
                {canManageProducts && <button onClick={handleOpenAdd} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-brand-red text-white rounded-lg text-sm flex justify-center"><Plus size={16} /> Produk</button>}
              </>
+          ) : activeTab === 'catalog' ? (
+              canManageProducts && <button onClick={handleOpenAddGallery} className="w-full lg:w-auto flex items-center gap-2 px-4 py-2 bg-brand-red text-white font-bold rounded-lg text-sm justify-center"><Plus size={16} /> Tambah Katalog</button>
           ) : (
               canManageCattle && <button onClick={() => setIsCattleModalOpen(true)} className="w-full lg:w-auto flex items-center gap-2 px-4 py-2 bg-brand-gold text-black font-bold rounded-lg text-sm justify-center"><Plus size={16} /> Buat PO Sapi</button>
           )}
@@ -440,32 +518,53 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
             </div>
         </>
       ) : activeTab === 'catalog' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filtered.map(product => (
-                <div key={product.id} className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden group">
-                    <div className="aspect-square bg-black/40 relative overflow-hidden">
-                        {product.image ? (
-                            <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {galleryItems.map(item => (
+                <div key={item.id} className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden group flex flex-col">
+                    <div className="aspect-video bg-black/40 relative overflow-hidden">
+                        {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-700">
-                                <Package size={48} />
+                                <ImageIcon size={48} />
                             </div>
                         )}
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button 
-                                onClick={() => handleOpenEdit(product)}
-                                className="bg-brand-red text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest"
+                                onClick={() => handleOpenEditGallery(item)}
+                                className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-500 transition-colors"
+                                title="Edit Item"
                             >
-                                Ganti Foto
+                                <Edit2 size={16} />
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteGallery(item.id)}
+                                className="bg-brand-red text-white p-2 rounded-lg hover:bg-red-500 transition-colors"
+                                title="Hapus Item"
+                            >
+                                <Trash2 size={16} />
                             </button>
                         </div>
+                        <div className="absolute top-2 left-2">
+                            <span className="bg-brand-red text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest">
+                                {item.category || 'Gallery'}
+                            </span>
+                        </div>
                     </div>
-                    <div className="p-3">
-                        <p className="text-white font-bold text-sm truncate">{product.name}</p>
-                        <p className="text-xs text-gray-500">{product.category}</p>
+                    <div className="p-4 flex-1 flex flex-col">
+                        <h4 className="text-white font-bold text-base mb-1 line-clamp-1">{item.title}</h4>
+                        <p className="text-xs text-gray-500 mb-2 line-clamp-1">{item.subtitle}</p>
+                        <p className="text-[10px] text-gray-600 mt-auto">{item.date}</p>
                     </div>
                 </div>
             ))}
+            {galleryItems.length === 0 && (
+                <div className="col-span-full py-20 text-center bg-[#1e1e1e] rounded-xl border border-dashed border-white/10">
+                    <ImageIcon size={48} className="mx-auto text-gray-700 mb-4" />
+                    <p className="text-gray-500">Belum ada item di katalog visual.</p>
+                    <button onClick={handleOpenAddGallery} className="mt-4 text-brand-red text-sm font-bold hover:underline">Tambah Item Sekarang</button>
+                </div>
+            )}
         </div>
       ) : (
          /* CATTLE PO VIEW */
@@ -639,6 +738,45 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
 
               <button type="submit" className="w-full py-3 bg-brand-gold hover:bg-yellow-600 text-black font-bold rounded-lg mt-4">
                 {editingCattle ? 'Simpan Perubahan' : 'Buat Purchase Order'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- GALLERY MODAL --- */}
+      {isGalleryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1e1e1e] w-[95%] max-w-lg rounded-xl border border-white/10 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
+              <h3 className="text-xl font-bold text-white">{editingGallery ? 'Edit Item Katalog' : 'Tambah Item Katalog'}</h3>
+              <button onClick={() => setIsGalleryModalOpen(false)}><XIcon size={24} className="text-gray-400"/></button>
+            </div>
+            <form onSubmit={handleSaveGallery} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] text-gray-500 uppercase mb-1">Judul</label>
+                <input type="text" placeholder="Judul Item" required value={galleryFormData.title} onChange={e => setGalleryFormData({...galleryFormData, title: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 uppercase mb-1">Sub-Judul / Deskripsi Singkat</label>
+                <input type="text" placeholder="Sub-judul" value={galleryFormData.subtitle} onChange={e => setGalleryFormData({...galleryFormData, subtitle: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-500 uppercase mb-1">Kategori</label>
+                  <input type="text" placeholder="Contoh: Produksi, Event" value={galleryFormData.category} onChange={e => setGalleryFormData({...galleryFormData, category: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-500 uppercase mb-1">URL Gambar</label>
+                  <input type="text" placeholder="https://..." required value={galleryFormData.imageUrl} onChange={e => setGalleryFormData({...galleryFormData, imageUrl: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 uppercase mb-1">Konten Lengkap</label>
+                <textarea placeholder="Cerita atau detail lengkap..." value={galleryFormData.content} onChange={e => setGalleryFormData({...galleryFormData, content: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white h-32 resize-none" />
+              </div>
+              <button type="submit" className="w-full py-3 bg-brand-red text-white font-bold rounded-lg shadow-lg shadow-brand-red/20">
+                {editingGallery ? 'Simpan Perubahan' : 'Tambah ke Katalog'}
               </button>
             </form>
           </div>

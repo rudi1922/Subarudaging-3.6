@@ -17,7 +17,8 @@ import {
   ArrowUp,
   Wallet,
   ShieldCheck,
-  TrendingUp
+  TrendingUp,
+  Truck
 } from 'lucide-react';
 import { User, Role } from '../types';
 import { useStore } from '../StoreContext';
@@ -51,7 +52,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const handleUpdateProfile = () => {
       updateUser({ ...user, avatar: avatarUrl });
       setIsProfileModalOpen(false);
-      showToast('Profil berhasil diperbarui!', 'success');
+      alert('Profile updated!');
   };
 
   // Handle screen resize
@@ -93,16 +94,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
-    { id: 'pos', label: 'Kasir (POS)', icon: Store, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.CASHIER, Role.RPH_ADMIN] },
-    { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN] },
-    { id: 'field_ops', label: 'Lapangan (Sales & DC)', icon: Briefcase, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.DEBT_COLLECTOR] }, 
-    { id: 'contacts', label: 'Pelanggan & Rekanan', icon: Contact2, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
+    { id: 'pos', label: 'Kasir (POS)', icon: Store, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.CASHIER, Role.RPH_ADMIN, Role.STAFF] },
+    { id: 'inventory', label: 'Gudang & Stok', icon: Package, roles: [Role.ADMIN, Role.MANAGER, Role.STAFF] },
+    { id: 'field_ops', label: 'Lapangan (Sales & DC)', icon: Briefcase, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.DEBT_COLLECTOR, Role.STAFF] }, 
+    { id: 'contacts', label: 'Pelanggan & Rekanan', icon: Contact2, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.STAFF] },
     { id: 'finance', label: 'Keuangan', icon: Calculator, roles: [Role.ADMIN] },
     { id: 'accounting', label: 'Akuntansi & Aktiva', icon: TrendingUp, roles: [Role.ADMIN, Role.DIRECTOR] },
     { id: 'director_private', label: 'Keuangan Pribadi', icon: ShieldCheck, roles: [Role.DIRECTOR, Role.ADMIN] },
-    { id: 'hr', label: 'Karyawan & Absensi', icon: Users, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
-    { id: 'commissions', label: 'Penghasilan Saya', icon: Wallet, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.CUSTOMER] },
-    { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] }, 
+    { id: 'hr', label: 'Karyawan & Absensi', icon: Users, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.STAFF] },
+    { id: 'distribution', label: 'Distribusi Armada', icon: Truck, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.STAFF] },
+    { id: 'commissions', label: 'Penghasilan Saya', icon: Wallet, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.SALES, Role.CUSTOMER, Role.STAFF] },
+    { id: 'archive', label: 'Arsip Digital', icon: FolderOpen, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN, Role.STAFF] }, 
     { id: 'settings', label: 'Pengaturan', icon: Settings, roles: [Role.DIRECTOR, Role.MANAGER, Role.ADMIN] },
   ];
 

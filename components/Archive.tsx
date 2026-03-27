@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { FileText, Printer, Download, FolderOpen, Search, Archive as ArchiveIcon, Package, Users, DollarSign, Calendar } from 'lucide-react';
 import { useStore } from '../StoreContext';
+import { PrinterService } from '../utils/printer';
+import { PrinterConnection } from '../types';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { createPortal } from 'react-dom';
@@ -194,13 +196,37 @@ const Archive: React.FC = () => {
 
     // --- PRINT LOGIC ---
     const handlePrint = (docType: DocType, title: string) => {
-        setPrintData({ title, type: docType, content: { products, employees } });
-        // Wait for portal to render then print
-        setTimeout(() => {
-            window.print();
-            // Clear data after print dialog closes
-            setTimeout(() => setPrintData(null), 1000);
-        }, 500);
+        if (printerConfig.connection === PrinterConnection.SYSTEM) {
+            setPrintData({ title, type: docType, content: { products, employees } });
+            // Wait for portal to render then print
+            setTimeout(() => {
+                window.print();
+                // Clear data after print dialog closes
+                setTimeout(() => setPrintData(null), 1000);
+            }, 500);
+        } else {
+            const printerService = new PrinterService(printerConfig);
+            let headData: string[] = [];
+            let bodyData: (string | number)[][] = [];
+
+            if (docType === 'Inventory') {
+                headData = ['Produk', 'Stok', 'Nilai'];
+                bodyData = products.map(p => [p.name.substring(0,10), p.stock, (p.price * p.stock).toLocaleString()]);
+            } else if (docType === 'HR') {
+                headData = ['Nama', 'Divisi', 'Gaji'];
+                bodyData = employees.map(e => [e.name.substring(0,10), e.division, e.baseSalary.toLocaleString()]);
+            } else {
+                headData = ['Item', 'Detail', 'Nilai'];
+                bodyData = [['Laporan', docType, 'Check PDF']];
+            }
+
+            const printData: PrintingData = {
+                title: title.toUpperCase(),
+                columns: headData,
+                rows: bodyData
+            };
+            printerService.print(printData);
+        }
     };
 
     return (

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { MapPin, MessageCircle, Navigation, Target, Plus, Clock, Wallet, Facebook, Instagram, Share2, Edit, Search } from 'lucide-react';
+import { MapPin, MessageCircle, Navigation, Target, Plus, Clock, Wallet, Facebook, Instagram, Share2, Edit, Search, X, Printer } from 'lucide-react';
 import { useStore } from '../StoreContext';
 import { User as UserType, Role, VisitRecord, Lead, Receivable } from '../types';
 import MarketAnalysis from './MarketAnalysis';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 interface FieldOpsProps {
     user: UserType;
 }
 
-const MarketingView = ({ leads, setShowLeadForm, handleCheckIn, searchTerm }: { leads: Lead[], setShowLeadForm: (show: boolean) => void, handleCheckIn: (type: 'Sales Visit' | 'Penagihan', customerName: string) => void, searchTerm: string }) => {
+const MarketingView = ({ leads, setShowLeadForm, handleCheckIn, searchTerm, onPrintReport }: { leads: Lead[], setShowLeadForm: (show: boolean) => void, handleCheckIn: (type: 'Sales Visit' | 'Penagihan', customerName: string) => void, searchTerm: string, onPrintReport: () => void }) => {
     const filteredLeads = leads.filter(l => 
         l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         l.location.toLowerCase().includes(searchTerm.toLowerCase())
@@ -21,9 +23,18 @@ const MarketingView = ({ leads, setShowLeadForm, handleCheckIn, searchTerm }: { 
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                     <Target size={120} />
                 </div>
-                <h3 className="text-white font-bold flex items-center gap-2 mb-4 relative z-10">
-                    <Target size={20} className="text-blue-300"/> Target Sales Harian
-                </h3>
+                <div className="flex justify-between items-start relative z-10">
+                    <h3 className="text-white font-bold flex items-center gap-2 mb-4">
+                        <Target size={20} className="text-blue-300"/> Target Sales Harian
+                    </h3>
+                    <button 
+                        onClick={onPrintReport}
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all flex items-center gap-2 text-xs font-bold"
+                        title="Print Laporan"
+                    >
+                        <Printer size={16} /> Print Laporan
+                    </button>
+                </div>
                 <div className="space-y-4 text-center py-6 relative z-10">
                     <p className="text-blue-200 text-sm">Target belum ditentukan untuk hari ini</p>
                     <button className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-full transition-all border border-white/10">
@@ -82,7 +93,7 @@ const MarketingView = ({ leads, setShowLeadForm, handleCheckIn, searchTerm }: { 
     );
 };
 
-const CollectionView = ({ receivables, handleCheckIn, setCollectionAction, user, searchTerm }: { receivables: Receivable[], handleCheckIn: (type: 'Sales Visit' | 'Penagihan', customerName: string) => void, setCollectionAction: (action: { rec: Receivable, action: 'janji' | 'bayar' | 'visit' } | null) => void, user: UserType, searchTerm: string }) => {
+const CollectionView = ({ receivables, handleCheckIn, setCollectionAction, user, searchTerm, onPrintReport }: { receivables: Receivable[], handleCheckIn: (type: 'Sales Visit' | 'Penagihan', customerName: string) => void, setCollectionAction: (action: { rec: Receivable, action: 'janji' | 'bayar' | 'visit' } | null) => void, user: UserType, searchTerm: string, onPrintReport: () => void }) => {
     const { visitRecords, collectionTarget, setCollectionTarget } = useStore();
     const [isEditingTarget, setIsEditingTarget] = useState(false);
     const [newTarget, setNewTarget] = useState(collectionTarget);
@@ -113,15 +124,24 @@ const CollectionView = ({ receivables, handleCheckIn, setCollectionAction, user,
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                     <Wallet size={120} />
                 </div>
-                {(user.role === Role.ADMIN || user.role === Role.MANAGER || user.role === Role.DIRECTOR) && (
+                <div className="absolute top-4 right-4 flex gap-2 z-20">
                     <button 
-                        onClick={() => setIsEditingTarget(true)}
-                        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity z-20"
-                        title="Edit Target"
+                        onClick={onPrintReport}
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all flex items-center gap-2 text-xs font-bold"
+                        title="Print Laporan"
                     >
-                        <Edit size={16} />
+                        <Printer size={16} />
                     </button>
-                )}
+                    {(user.role === Role.ADMIN || user.role === Role.MANAGER || user.role === Role.DIRECTOR) && (
+                        <button 
+                            onClick={() => setIsEditingTarget(true)}
+                            className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Edit Target"
+                        >
+                            <Edit size={16} />
+                        </button>
+                    )}
+                </div>
                 
                 <h3 className="text-white font-bold flex items-center gap-2 mb-4 relative z-10"><Wallet size={20} className="text-red-300"/> Target Penagihan</h3>
                 <div className="flex justify-between items-end mb-3 relative z-10">
@@ -214,7 +234,7 @@ const CollectionView = ({ receivables, handleCheckIn, setCollectionAction, user,
 };
 
 const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
-    const { receivables, visitRecords, leads, addVisitRecord, addLead, payReceivable, addSystemLog, showToast } = useStore();
+    const { receivables, visitRecords, leads, addVisitRecord, addLead, payReceivable, addSystemLog } = useStore();
     const [activeTab, setActiveTab] = useState<'marketing' | 'collection'>(user.role === Role.DEBT_COLLECTOR ? 'collection' : 'marketing');
     const [searchTerm, setSearchTerm] = useState('');
     
@@ -229,6 +249,65 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
 
     // -- SHARED STATE --
     const [isCheckingIn, setIsCheckingIn] = useState(false);
+
+    const handlePrintMarketingReport = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(18);
+        doc.text('LAPORAN KEGIATAN MARKETING', 105, 15, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Petugas: ${user.name}`, 14, 25);
+        doc.text(`Tanggal: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        const tableData = visitRecords
+            .filter(v => v.type === 'Sales Visit' && (user.role === Role.ADMIN || user.role === Role.MANAGER || v.userId === user.id))
+            .map(v => [
+                new Date(v.timestamp).toLocaleString(),
+                v.customerName,
+                v.location,
+                v.outcome
+            ]);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (doc as any).autoTable({
+            startY: 40,
+            head: [['Waktu', 'Customer', 'Lokasi', 'Hasil/Keterangan']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 64, 175] }
+        });
+
+        doc.save(`Laporan_Marketing_${user.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
+    const handlePrintCollectorReport = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(18);
+        doc.text('LAPORAN KEGIATAN COLLECTOR', 105, 15, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Petugas: ${user.name}`, 14, 25);
+        doc.text(`Tanggal: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        const tableData = visitRecords
+            .filter(v => v.type === 'Penagihan' && (user.role === Role.ADMIN || user.role === Role.MANAGER || v.userId === user.id))
+            .map(v => [
+                new Date(v.timestamp).toLocaleString(),
+                v.customerName,
+                v.location,
+                v.outcome,
+                v.amountCollected ? `Rp ${v.amountCollected.toLocaleString()}` : '-'
+            ]);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (doc as any).autoTable({
+            startY: 40,
+            head: [['Waktu', 'Customer', 'Lokasi', 'Hasil/Keterangan', 'Jumlah']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [153, 27, 27] }
+        });
+
+        doc.save(`Laporan_Collector_${user.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
 
     // -- MOCK GPS CHECKIN --
     const handleCheckIn = (type: 'Sales Visit' | 'Penagihan', customerName: string) => {
@@ -262,7 +341,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
                         device: 'Mobile'
                     });
                     setIsCheckingIn(false);
-                    showToast(`Berhasil Check-In di ${loc}`, 'success');
+                    alert(`Berhasil Check-In di ${loc}`);
                 }, () => {
                     // Fallback
                     const newRecord: VisitRecord = {
@@ -278,7 +357,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
                     };
                     addVisitRecord(newRecord);
                     setIsCheckingIn(false);
-                    showToast('Check-In Manual Berhasil (GPS Gagal)', 'warning');
+                    alert('Check-In Manual Berhasil (GPS Gagal)');
                 });
             }
         }, 1000);
@@ -316,7 +395,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
         if (!collectionAction) return;
 
         if (collectionAction.action === 'bayar') {
-            if (paymentAmount <= 0) return showToast('Masukkan nominal bayar', 'error');
+            if (paymentAmount <= 0) return alert('Masukkan nominal bayar');
             payReceivable(collectionAction.rec.id, paymentAmount);
             addVisitRecord({
                 id: `v-${Date.now()}`,
@@ -373,7 +452,7 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
         setCollectionAction(null);
         setPaymentAmount(0);
         setNotes('');
-        showToast('Aktivitas Penagihan Tercatat', 'success');
+        alert('Aktivitas Penagihan Tercatat');
     };
 
     // --- RENDERERS ---
@@ -429,9 +508,9 @@ const FieldOps: React.FC<FieldOpsProps> = ({ user }) => {
 
             {/* Main Content */}
             {activeTab === 'marketing' ? (
-                <MarketingView leads={leads} setShowLeadForm={setShowLeadForm} handleCheckIn={handleCheckIn} searchTerm={searchTerm} />
+                <MarketingView leads={leads} setShowLeadForm={setShowLeadForm} handleCheckIn={handleCheckIn} searchTerm={searchTerm} onPrintReport={handlePrintMarketingReport} />
             ) : (
-                <CollectionView receivables={receivables} handleCheckIn={handleCheckIn} setCollectionAction={setCollectionAction} user={user} searchTerm={searchTerm} />
+                <CollectionView receivables={receivables} handleCheckIn={handleCheckIn} setCollectionAction={setCollectionAction} user={user} searchTerm={searchTerm} onPrintReport={handlePrintCollectorReport} />
             )}
 
             {/* --- MODALS --- */}

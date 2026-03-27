@@ -7,7 +7,6 @@ import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { PrinterService } from '../utils/printer';
 import { getUsers, createUser, updateUser, deleteUser } from '../services/auth';
-import ConfirmModal from './ConfirmModal';
 
 interface HRProps {
   user?: UserType;
@@ -88,7 +87,25 @@ const PrintableSlip = ({ slipData, paperSize }: { slipData: ReceiptData | null; 
 type HRTab = 'overview' | 'attendance' | 'payroll' | 'financials' | 'users' | 'monitor';
 
 const HR: React.FC<HRProps> = ({ user }) => {
-  const { employees, setEmployees, employeeFinancials, addEmployeeFinancial, searchQuery, printerConfig, addSystemLog, attendanceHistory, appSettings, outlets, checkInEmployee, users: allUsers, approveUser, showToast } = useStore();
+  const { 
+    employees, 
+    addEmployee,
+    updateEmployee,
+    deleteEmployee,
+    employeeFinancials, 
+    addEmployeeFinancial, 
+    searchQuery, 
+    printerConfig, 
+    addSystemLog, 
+    attendanceHistory, 
+    appSettings, 
+    outlets, 
+    checkInEmployee, 
+    users: allUsers, 
+    approveUser,
+    divisions,
+    confirm
+  } = useStore();
   const [activeTab, setActiveTab] = useState<HRTab>('overview');
   const [localSearch, setLocalSearch] = useState('');
   const [viewHistory, setViewHistory] = useState(false);
@@ -143,40 +160,37 @@ const HR: React.FC<HRProps> = ({ user }) => {
       if (editingUser) {
           const updated = await updateUser(editingUser.id, userFormData);
           if (updated) {
-              showToast('User updated successfully', 'success');
+              alert('User updated successfully');
               setIsUserModalOpen(false);
               getUsers().then(setUsers);
           } else {
-              showToast('Failed to update user', 'error');
+              alert('Failed to update user');
           }
       } else {
-          if (!userFormData.password) return showToast('Password is required for new users', 'error');
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const created = await createUser(userFormData as any);
+          if (!userFormData.password) return alert('Password is required for new users');
+          const created = await createUser(userFormData as Parameters<typeof createUser>[0]);
           if (created) {
-              showToast('User created successfully', 'success');
+              alert('User created successfully');
               setIsUserModalOpen(false);
               getUsers().then(setUsers);
           } else {
-              showToast('Failed to create user', 'error');
+              alert('Failed to create user');
           }
       }
   };
 
   const handleDeleteUser = async (id: string) => {
-      setConfirmData({
-          isOpen: true,
-          title: 'Hapus User',
-          message: 'Apakah Anda yakin ingin menghapus user ini?',
-          onConfirm: async () => {
-              const success = await deleteUser(id);
-              if (success) {
-                  showToast('User berhasil dihapus', 'success');
-                  getUsers().then(setUsers);
-              } else {
-                  showToast('Failed to delete user', 'error');
-              }
+      confirm({
+        title: 'Hapus User',
+        message: 'Apakah Anda yakin ingin menghapus user ini?',
+        onConfirm: async () => {
+          const success = await deleteUser(id);
+          if (success) {
+              getUsers().then(setUsers);
+          } else {
+              alert('Failed to delete user');
           }
+        }
       });
   };
 
@@ -194,19 +208,6 @@ const HR: React.FC<HRProps> = ({ user }) => {
   // Broadcast Modal State
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState('');
-
-  // Confirm Modal State
-  const [confirmData, setConfirmData] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-  });
 
   // Printer State
   const [printerStatus, setPrinterStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -241,19 +242,19 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleCheckIn = async () => {
     if (!user || !user.employeeId) {
-        showToast("Anda tidak terdaftar sebagai karyawan.", 'error');
+        alert("Anda tidak terdaftar sebagai karyawan.");
         return;
     }
 
     const emp = employees.find(e => e.id === user.employeeId);
     if (!emp) {
-        showToast("Data karyawan tidak ditemukan.", 'error');
+        alert("Data karyawan tidak ditemukan.");
         return;
     }
 
     const outlet = outlets.find(o => o.id === emp.outletId);
     if (!outlet || !outlet.coordinates) {
-        showToast("Lokasi kerja tidak terkonfigurasi untuk Anda.", 'error');
+        alert("Lokasi kerja tidak terkonfigurasi untuk Anda.");
         return;
     }
 
@@ -269,12 +270,12 @@ const HR: React.FC<HRProps> = ({ user }) => {
         const isValidIp = !emp.deviceIp || emp.deviceIp === currentIp;
 
         if (!isValidLocation) {
-            showToast(`Gagal Absensi: Anda berada di luar radius lokasi kerja (${Math.round(distance)}m dari ${outlet.name}).`, 'error');
+            alert(`Gagal Absensi: Anda berada di luar radius lokasi kerja (${Math.round(distance)}m dari ${outlet.name}).`);
             return;
         }
 
         if (!isValidIp) {
-            showToast(`Gagal Absensi: Perangkat Anda tidak terdaftar (${currentIp}). Gunakan HP Anda sendiri.`, 'error');
+            alert(`Gagal Absensi: Perangkat Anda tidak terdaftar (${currentIp}). Gunakan HP Anda sendiri.`);
             return;
         }
 
@@ -297,22 +298,21 @@ const HR: React.FC<HRProps> = ({ user }) => {
             device: navigator.userAgent
         });
 
-        showToast(`${isCheckingOut ? 'Check-Out' : 'Check-In'} Berhasil di ${outlet.name}!`, 'success');
+        alert(`${isCheckingOut ? 'Check-Out' : 'Check-In'} Berhasil di ${outlet.name}!`);
       }, (err) => {
-        showToast(`Gagal mendapatkan lokasi: ${err.message}`, 'error');
+        alert(`Gagal mendapatkan lokasi: ${err.message}`);
       });
     } else {
-      showToast("Geolocation tidak didukung oleh browser ini.", 'error');
+      alert("Geolocation tidak didukung oleh browser ini.");
     }
   };
 
   // Printer Connection Logic (Simulation)
   const handleConnectPrinter = () => {
       if (printerStatus === 'connected') {
-          setConfirmData({
-              isOpen: true,
-              title: 'Putus Koneksi',
-              message: 'Apakah Anda yakin ingin memutuskan koneksi printer?',
+          confirm({
+              title: 'Putuskan Koneksi',
+              message: 'Putuskan koneksi printer?',
               onConfirm: () => setPrinterStatus('disconnected')
           });
           return;
@@ -321,17 +321,43 @@ const HR: React.FC<HRProps> = ({ user }) => {
       // Simulate Bluetooth/USB handshake delay
       setTimeout(() => {
           setPrinterStatus('connected');
-          showToast('Printer Thermal Terhubung (Ready)', 'success');
+          alert('Printer Thermal Terhubung (Ready)');
       }, 1500);
   };
 
   // Combine Global Search with Local Search
   const effectiveSearch = searchQuery || localSearch;
 
-  const filteredEmployees = employees.filter(e => 
-    e.name.toLowerCase().includes(effectiveSearch.toLowerCase()) || 
-    e.division.toLowerCase().includes(effectiveSearch.toLowerCase())
-  );
+  const getPositionRank = (pos: string) => {
+    const p = pos.toUpperCase();
+    if (p.includes('DIREKTUR UTAMA')) return 100;
+    if (p.includes('DIREKTUR')) return 90;
+    if (p.includes('MANAGER')) return 80;
+    if (p.includes('KONSULTAN')) return 70;
+    if (p.includes('KOORDINATOR')) return 60;
+    if (p.includes('ADMIN')) return 50;
+    if (p.includes('PIC')) return 40;
+    if (p.includes('OFFICER')) return 30;
+    if (p.includes('SALESMAN')) return 20;
+    return 10;
+  };
+
+  const filteredEmployees = employees
+    .filter(e => 
+      e.name.toLowerCase().includes(effectiveSearch.toLowerCase()) || 
+      e.division.toLowerCase().includes(effectiveSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Primary sort by division
+      const divCompare = a.division.localeCompare(b.division);
+      if (divCompare !== 0) return divCompare;
+      // Secondary sort by position rank (descending)
+      const rankA = getPositionRank(a.position);
+      const rankB = getPositionRank(b.position);
+      if (rankA !== rankB) return rankB - rankA;
+      // Tertiary sort by name
+      return a.name.localeCompare(b.name);
+    });
 
   const presentCount = employees.filter(e => e.status === 'Hadir').length;
   const lateCount = employees.filter(e => e.status === 'Terlambat').length;
@@ -372,7 +398,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleSaveFinancial = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedEmpId) return showToast('Pilih karyawan', 'error');
+      if (!selectedEmpId) return alert('Pilih karyawan');
       
       addEmployeeFinancial({
           id: `fin-${Date.now()}`,
@@ -424,10 +450,16 @@ const HR: React.FC<HRProps> = ({ user }) => {
       setIsEditModalOpen(true);
   };
 
-  const handleSaveEmployee = (e: React.FormEvent) => {
+  const handleSaveEmployee = async (e: React.FormEvent) => {
       e.preventDefault();
       if (editingEmployee) {
-          setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? editingEmployee : emp));
+          const isNew = !employees.find(emp => emp.id === editingEmployee.id);
+          
+          if (isNew) {
+              await addEmployee(editingEmployee);
+          } else {
+              await updateEmployee(editingEmployee);
+          }
           
           if (user) {
               addSystemLog({
@@ -436,7 +468,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
                   userName: user.name,
                   role: user.role,
                   action: 'ACTION',
-                  details: `Update Data Karyawan: ${editingEmployee.name}`,
+                  details: `${isNew ? 'Tambah' : 'Update'} Data Karyawan: ${editingEmployee.name}`,
                   timestamp: new Date().toISOString(),
                   ip: '127.0.0.1',
                   location: 'HR',
@@ -448,10 +480,21 @@ const HR: React.FC<HRProps> = ({ user }) => {
       }
   };
 
+  const handleDeleteEmployee = async (id: string) => {
+      confirm({
+        title: 'Hapus Karyawan',
+        message: 'Apakah Anda yakin ingin menghapus data karyawan ini?',
+        onConfirm: async () => {
+          await deleteEmployee(id);
+          setIsEditModalOpen(false);
+        }
+      });
+  };
+
   // --- WHATSAPP FEATURES ---
   const handleChatWA = (emp: Employee) => {
       if (!emp.phone) {
-          showToast('Nomor telepon tidak tersedia.', 'error');
+          alert('Nomor telepon tidak tersedia.');
           return;
       }
       const msg = `Halo ${emp.name}, ada hal yang ingin saya diskusikan terkait pekerjaan.`;
@@ -463,15 +506,14 @@ const HR: React.FC<HRProps> = ({ user }) => {
       e.preventDefault();
       if (!broadcastMessage) return;
       
-      setConfirmData({
-          isOpen: true,
-          title: 'Kirim Broadcast',
-          message: `Kirim pengumuman ini ke ${filteredEmployees.length} karyawan yang tampil di daftar?`,
-          onConfirm: () => {
-              showToast(`Pesan Broadcast Terkirim ke ${filteredEmployees.length} Penerima.`, 'success');
-              setIsBroadcastOpen(false);
-              setBroadcastMessage('');
-          }
+      confirm({
+        title: 'Kirim Pengumuman',
+        message: `Kirim pengumuman ini ke ${filteredEmployees.length} karyawan yang tampil di daftar?`,
+        onConfirm: () => {
+          alert(`Pesan Broadcast Terkirim:\n"${broadcastMessage}"\n\nTarget: ${filteredEmployees.length} Penerima.`);
+          setIsBroadcastOpen(false);
+          setBroadcastMessage('');
+        }
       });
   };
 
@@ -524,7 +566,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
   const handleSendSalaryWA = (emp: Employee) => {
       if (!emp.phone) {
-          showToast('Nomor telepon karyawan tidak tersedia!', 'error');
+          alert('Nomor telepon karyawan tidak tersedia!');
           return;
       }
       const calc = calculateWeeklySalary(emp);
@@ -694,7 +736,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
 
                  {/* Division Breakdown */}
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {['RPH Subaru', 'Kantor Admin', 'Subaru Tamin', 'Subaru Way Halim', 'Bagian Umum'].map(div => (
+                    {divisions.map(div => (
                         <div key={div} className="bg-[#1e1e1e] border border-white/5 p-4 rounded-xl">
                             <h4 className="text-white font-medium">{div}</h4>
                             <p className="text-2xl font-bold text-brand-red mt-2">{employees.filter(e => e.division === div).length} <span className="text-sm font-normal text-gray-400">Orang</span></p>
@@ -719,6 +761,29 @@ const HR: React.FC<HRProps> = ({ user }) => {
                         />
                     </div>
                     <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                setEditingEmployee({
+                                    id: `emp-${Date.now()}`,
+                                    name: '',
+                                    division: outlets[0]?.name || 'RPH Subaru',
+                                    position: '',
+                                    status: 'Absen',
+                                    checkInTime: '',
+                                    checkOutTime: '',
+                                    baseSalary: 0,
+                                    hourlyRate: 0,
+                                    isWarehousePIC: false,
+                                    phone: '',
+                                    outletId: outlets[0]?.id || 'main',
+                                    deviceIp: ''
+                                });
+                                setIsEditModalOpen(true);
+                            }}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg"
+                        >
+                            <UserPlus size={18} /> Tambah Karyawan
+                        </button>
                         <button 
                             onClick={() => setViewHistory(!viewHistory)}
                             className="bg-[#2a2a2a] text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#333] transition-colors border border-white/10"
@@ -1119,15 +1184,13 @@ const HR: React.FC<HRProps> = ({ user }) => {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => {
-                                            setConfirmData({
-                                                isOpen: true,
-                                                title: 'Setujui Akses',
+                                        onClick={async () => {
+                                            confirm({
+                                                title: 'Konfirmasi Persetujuan',
                                                 message: `Setujui akses untuk ${u.name}?`,
                                                 onConfirm: async () => {
                                                     await approveUser(u.id);
                                                     getUsers().then(setUsers);
-                                                    showToast(`Akses untuk ${u.name} disetujui`, 'success');
                                                 }
                                             });
                                         }}
@@ -1249,8 +1312,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
                             <button 
                                 type="button"
                                 onClick={() => {
-                                    setConfirmData({
-                                        isOpen: true,
+                                    confirm({
                                         title: 'Hapus User',
                                         message: `Apakah Anda yakin ingin menghapus user ${editingUser.name}?`,
                                         onConfirm: () => {
@@ -1426,11 +1488,23 @@ const HR: React.FC<HRProps> = ({ user }) => {
                     </div>
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">Divisi</label>
-                        <input 
-                            type="text" disabled
-                            className="w-full bg-black/50 border border-white/5 rounded-lg p-2.5 text-gray-400 cursor-not-allowed"
+                        <select 
+                            className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white focus:border-brand-red outline-none"
                             value={editingEmployee.division}
-                        />
+                            onChange={e => {
+                                const div = e.target.value;
+                                const outlet = outlets.find(o => o.name === div);
+                                setEditingEmployee({
+                                    ...editingEmployee, 
+                                    division: div,
+                                    outletId: outlet?.id || editingEmployee.outletId
+                                });
+                            }}
+                        >
+                            {divisions.map(div => (
+                                <option key={div} value={div}>{div}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">Honor Mingguan (Rp)</label>
@@ -1457,7 +1531,7 @@ const HR: React.FC<HRProps> = ({ user }) => {
                                     fetch('https://api.ipify.org?format=json')
                                     .then(res => res.json())
                                     .then(data => setEditingEmployee({...editingEmployee, deviceIp: data.ip}))
-                                    .catch(err => showToast('Gagal mendapatkan IP: ' + err.message, 'error'));
+                                    .catch(err => alert('Gagal mendapatkan IP: ' + err.message));
                                 }}
                                 className="bg-blue-600/20 text-blue-400 px-3 rounded-lg border border-blue-600/30 hover:bg-blue-600/30 text-xs whitespace-nowrap"
                             >
@@ -1485,9 +1559,20 @@ const HR: React.FC<HRProps> = ({ user }) => {
                         </div>
                     )}
 
-                    <button type="submit" className="w-full py-3 bg-brand-red hover:bg-red-900 rounded-lg text-white font-medium flex items-center justify-center gap-2 mt-2">
-                         <Save size={18} /> Update Karyawan
-                    </button>
+                    <div className="flex gap-3 mt-2">
+                        {employees.find(emp => emp.id === editingEmployee.id) && (
+                            <button 
+                                type="button"
+                                onClick={() => handleDeleteEmployee(editingEmployee.id)}
+                                className="flex-1 py-3 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <Trash2 size={18} /> Hapus
+                            </button>
+                        )}
+                        <button type="submit" className="flex-[2] py-3 bg-brand-red hover:bg-red-900 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors">
+                             <Save size={18} /> {employees.find(emp => emp.id === editingEmployee.id) ? 'Update Karyawan' : 'Tambah Karyawan'}
+                        </button>
+                    </div>
                 </form>
             </div>
           </div>
@@ -1523,17 +1608,6 @@ const HR: React.FC<HRProps> = ({ user }) => {
             </div>
           </div>
       )}
-
-      <ConfirmModal 
-        isOpen={confirmData.isOpen}
-        title={confirmData.title}
-        message={confirmData.message}
-        onConfirm={() => {
-          confirmData.onConfirm();
-          setConfirmData(prev => ({ ...prev, isOpen: false }));
-        }}
-        onCancel={() => setConfirmData(prev => ({ ...prev, isOpen: false }))}
-      />
     </div>
   );
 };

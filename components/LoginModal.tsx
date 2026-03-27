@@ -59,9 +59,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
           setError('Username atau Password salah.');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Auth error:", err);
-      if (err.message === 'Menunggu Persetujuan Admin') {
+      if (err instanceof Error && err.message === 'Menunggu Persetujuan Admin') {
           setError(err.message);
       } else {
           setError('Terjadi kesalahan sistem. Silakan coba lagi.');
@@ -154,6 +154,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin }) => 
                   <option value={Role.CASHIER}>Cashier</option>
                   <option value={Role.SALES}>Sales Marketing</option>
                   <option value={Role.DEBT_COLLECTOR}>Debt Collector</option>
+                  <option value={Role.STAFF}>Staff</option>
                   <option value={Role.ADMIN}>Admin</option>
                   <option value={Role.MANAGER}>Manager</option>
                 </select>

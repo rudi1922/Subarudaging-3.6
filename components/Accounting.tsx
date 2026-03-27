@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '../StoreContext';
 import { Asset, User } from '../types';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface AccountingProps {
   user: User;
@@ -35,7 +37,7 @@ const Accounting: React.FC<AccountingProps> = () => {
     const asset: Asset = {
       id: `asset-${Date.now()}`,
       name: newAsset.name || '',
-      category: newAsset.category as any,
+      category: newAsset.category as Asset['category'],
       purchaseDate: newAsset.purchaseDate || '',
       purchasePrice: Number(newAsset.purchasePrice) || 0,
       currentValue: Number(newAsset.purchasePrice) || 0,
@@ -70,6 +72,48 @@ const Accounting: React.FC<AccountingProps> = () => {
     }
   };
 
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add Title
+      doc.setFontSize(20);
+      doc.text('Laporan Aset & Aktiva - Subaru Daging Sapi', 14, 22);
+      
+      // Add Summary
+      doc.setFontSize(12);
+      doc.text(`Total Nilai Aset: Rp ${totalAssetValue.toLocaleString()}`, 14, 35);
+      doc.text(`Total Nilai Inventaris: Rp ${totalInventoryValue.toLocaleString()}`, 14, 42);
+      doc.text(`Total Aktiva: Rp ${(totalAssetValue + totalInventoryValue).toLocaleString()}`, 14, 49);
+      doc.text(`Tanggal Laporan: ${new Date().toLocaleDateString('id-ID')}`, 14, 56);
+      
+      // Add Table
+      const tableColumn = ["Nama Aset", "Kategori", "Tgl Perolehan", "Harga Beli", "Nilai Saat Ini"];
+      const tableRows = filteredAssets.map(asset => [
+        asset.name,
+        asset.category,
+        new Date(asset.purchaseDate).toLocaleDateString('id-ID'),
+        `Rp ${asset.purchasePrice.toLocaleString()}`,
+        `Rp ${asset.currentValue.toLocaleString()}`
+      ]);
+      
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 65,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 38, 38] }, // Brand Red
+        styles: { fontSize: 9 }
+      });
+      
+      doc.save(`Laporan_Aset_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      // Fallback to window.print if jsPDF fails
+      window.print();
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
@@ -82,9 +126,12 @@ const Accounting: React.FC<AccountingProps> = () => {
           <p className="text-gray-400 text-sm">Manajemen aset tetap dan inventaris perusahaan</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10">
+          <button 
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
+          >
             <Download size={18} />
-            Ekspor Laporan
+            Ekspor Laporan (PDF)
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
@@ -249,7 +296,7 @@ const Accounting: React.FC<AccountingProps> = () => {
                   <select 
                     className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white focus:border-brand-red outline-none"
                     value={newAsset.category}
-                    onChange={(e) => setNewAsset({...newAsset, category: e.target.value as any})}
+                    onChange={(e) => setNewAsset({...newAsset, category: e.target.value as Asset['category']})}
                   >
                     <option value="Kendaraan">Kendaraan</option>
                     <option value="Peralatan">Peralatan</option>

@@ -7,7 +7,6 @@ import { Expense, PrinterConnection, User as UserType } from '../types';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PrinterService } from '../utils/printer';
-import ConfirmModal from './ConfirmModal';
 
 interface FinanceProps {
   user?: UserType;
@@ -145,13 +144,12 @@ const PrintableReport = ({ totalRevenue, costOfGoods, totalExpenses, netProfit, 
 };
 
 const Finance: React.FC<FinanceProps> = ({ user }) => {
-  const { transactions, receivables, expenses, addExpense, products, printerConfig, addSystemLog, debtPayments, showToast } = useStore();
+  const { transactions, receivables, expenses, addExpense, products, printerConfig, addSystemLog, debtPayments, divisions, confirm } = useStore();
   const [activeTab, setActiveTab] = useState<'daily' | 'pnl' | 'receivables' | 'reconcile' | 'expenses' | 'debt_history'>('daily');
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [isExpModalOpen, setIsExpModalOpen] = useState(false);
-  const [confirmData, setConfirmData] = useState<{ isOpen: boolean; onConfirm: () => void; message: string; title: string } | null>(null);
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({
-      date: new Date().toISOString().split('T')[0], amount: 0, category: 'Operasional', description: '', division: 'Kantor Admin', proofImage: ''
+      date: new Date().toISOString().split('T')[0], amount: 0, category: 'Operasional', description: '', division: divisions[0] || 'DIVISI KANTOR PUSAT', proofImage: ''
   });
   const [fileName, setFileName] = useState('');
 
@@ -352,26 +350,23 @@ const Finance: React.FC<FinanceProps> = ({ user }) => {
     });
     
     if(dueReceivables.length === 0) {
-        showToast('Tidak ada tagihan jatuh tempo (dengan No. HP valid) untuk diingatkan saat ini.', 'info');
+        alert('Tidak ada tagihan jatuh tempo (dengan No. HP valid) untuk diingatkan saat ini.');
         return;
     }
 
     const confirmMsg = `Ditemukan ${dueReceivables.length} tagihan prioritas/jatuh tempo.\n\nSistem akan membuka WhatsApp Web untuk pelanggan berikut:\n\n${dueReceivables.map(r => "- " + r.customerName).join("\n")}\n\nPastikan 'Popup Blocker' dimatikan agar semua tab bisa terbuka. Lanjutkan?`;
 
-    setConfirmData({
-        isOpen: true,
-        title: 'Kirim Pengingat Otomatis',
-        message: confirmMsg,
-        onConfirm: () => {
-            // Loop dengan delay agar tidak dianggap spam/diblokir browser
-            dueReceivables.forEach((rec, index) => {
-                setTimeout(() => {
-                    sendWhatsAppReminder(rec);
-                }, index * 1500); // Jeda 1.5 detik per pesan
-            });
-            
-            showToast('Proses reminder berjalan di latar belakang.', 'success');
-        }
+    confirm({
+      title: 'Kirim Pengingat Otomatis',
+      message: confirmMsg,
+      onConfirm: () => {
+        // Loop dengan delay agar tidak dianggap spam/diblokir browser
+        dueReceivables.forEach((rec, index) => {
+            setTimeout(() => {
+                sendWhatsAppReminder(rec);
+            }, index * 1500); // Jeda 1.5 detik per pesan
+        });
+      }
     });
   };
 
@@ -388,7 +383,7 @@ const Finance: React.FC<FinanceProps> = ({ user }) => {
       
       // Enforce proof upload
       if (!newExpense.proofImage) {
-          showToast('Wajib upload bukti pengeluaran (Struk/Nota)! Tanpa bukti, pengeluaran dianggap tidak sah.', 'warning');
+          alert('Wajib upload bukti pengeluaran (Struk/Nota)! Tanpa bukti, pengeluaran dianggap tidak sah.');
           return;
       }
 
@@ -430,7 +425,7 @@ const Finance: React.FC<FinanceProps> = ({ user }) => {
       setIsExpModalOpen(false);
       setFileName('');
       setNewExpense({
-          date: new Date().toISOString().split('T')[0], amount: 0, category: 'Operasional', description: '', division: 'Kantor Admin', proofImage: ''
+          date: new Date().toISOString().split('T')[0], amount: 0, category: 'Operasional', description: '', division: divisions[0] || 'DIVISI KANTOR PUSAT', proofImage: ''
       });
   };
 
@@ -908,11 +903,7 @@ const Finance: React.FC<FinanceProps> = ({ user }) => {
                              value={newExpense.division}
                              onChange={e => setNewExpense({...newExpense, division: e.target.value as Division})}
                         >
-                            <option>RPH Subaru</option>
-                            <option>Kantor Admin</option>
-                            <option>Subaru Tamin</option>
-                            <option>Subaru Way Halim</option>
-                            <option>Bagian Umum</option>
+                            {divisions.map(div => <option key={div} value={div}>{div}</option>)}
                         </select>
                     </div>
                     <div>
@@ -965,14 +956,6 @@ const Finance: React.FC<FinanceProps> = ({ user }) => {
             </div>
           </div>
       )}
-
-      <ConfirmModal
-        isOpen={!!confirmData?.isOpen}
-        title={confirmData?.title || 'Konfirmasi'}
-        message={confirmData?.message || ''}
-        onConfirm={confirmData?.onConfirm || (() => {})}
-        onCancel={() => setConfirmData(null)}
-      />
     </div>
   );
 };

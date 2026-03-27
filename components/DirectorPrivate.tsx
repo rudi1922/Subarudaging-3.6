@@ -48,7 +48,7 @@ const DirectorPrivate: React.FC<DirectorPrivateProps> = ({ user }) => {
     const tx: PrivateTransaction = {
       id: `ptx-${Date.now()}`,
       date: newTx.date || '',
-      type: newTx.type as any,
+      type: newTx.type as PrivateTransaction['type'],
       category: newTx.category || '',
       amount: Number(newTx.amount) || 0,
       description: newTx.description || '',

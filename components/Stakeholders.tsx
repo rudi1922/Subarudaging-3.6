@@ -10,7 +10,7 @@ interface StakeholdersProps {
 const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
   const [localSearch, setLocalSearch] = useState('');
-  const { searchQuery, customers, setCustomers, addCustomer, addSystemLog, suppliers, setSuppliers, setConfirmData, showToast } = useStore();
+  const { searchQuery, customers, setCustomers, addCustomer, addSystemLog, suppliers, setSuppliers, confirm } = useStore();
   
   // Data State
   // const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS); // REMOVED LOCAL STATE
@@ -70,8 +70,7 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
   };
 
   const handleDelete = (id: string) => {
-    setConfirmData({
-      isOpen: true,
+    confirm({
       title: 'Hapus Kontak',
       message: 'Apakah Anda yakin ingin menghapus kontak ini?',
       onConfirm: () => {
@@ -80,7 +79,6 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
         } else {
           setSuppliers(prev => prev.filter(s => s.id !== id));
         }
-        showToast('Kontak berhasil dihapus', 'success');
       }
     });
   };
@@ -194,10 +192,17 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
     setIsPOModalOpen(true);
   };
 
-  const updatePoItem = (index: number, field: string, value: any) => {
+  const updatePoItem = (index: number, field: keyof typeof poItems[0], value: string | number) => {
       const newItems = [...poItems];
-      // @ts-expect-error - Dynamic assignment
-      newItems[index][field] = value;
+      const item = { ...newItems[index] };
+      if (field === 'name') {
+          item.name = String(value);
+      } else if (field === 'qty') {
+          item.qty = Number(value);
+      } else if (field === 'price') {
+          item.price = Number(value);
+      }
+      newItems[index] = item;
       setPoItems(newItems);
   };
 
@@ -236,11 +241,11 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
         const demoCustomer = customers[0];
         const url = `https://wa.me/${demoCustomer.phone}?text=${encodeURIComponent(broadcastMsg)}`;
         
-        showToast(`Simulasi: Membuka WhatsApp Web untuk Broadcast.\nTarget: ${customers.length} Pelanggan.`, 'info');
+        alert(`Simulasi: Membuka WhatsApp Web untuk Broadcast.\nTarget: ${customers.length} Pelanggan.\n\nDalam mode produksi, ini akan menggunakan WA API Gateway.`);
         window.open(url, '_blank');
         setIsBroadcastModalOpen(false);
     } else {
-        showToast("Belum ada data pelanggan untuk di-broadcast.", 'warning');
+        alert("Belum ada data pelanggan untuk di-broadcast.");
     }
   };
 
@@ -431,7 +436,7 @@ const Stakeholders: React.FC<StakeholdersProps> = ({ user }) => {
                    </div>
                    <div>
                       <label className="block text-sm text-gray-400 mb-1">Customer Type</label>
-                      <select value={customerForm.type} onChange={e => setCustomerForm({...customerForm, type: e.target.value as any})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white focus:border-brand-red outline-none">
+                      <select value={customerForm.type} onChange={e => setCustomerForm({...customerForm, type: e.target.value as 'Umum' | 'Tetap'})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white focus:border-brand-red outline-none">
                         <option value="Umum">Umum (General)</option>
                         <option value="Tetap">Tetap (VIP)</option>
                       </select>

@@ -24,7 +24,7 @@ interface LogEntry {
     amount: number;
     user?: string;
     status?: string;
-    details?: Transaction | any;
+    details?: Transaction | Record<string, unknown>;
     // New fields for System Activity
     location?: string;
     device?: string;

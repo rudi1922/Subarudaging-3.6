@@ -47,14 +47,14 @@ const PrinterSettings: React.FC = () => {
     setStatusMessage('Mencari perangkat Bluetooth...');
     
     // Web Bluetooth API Check
-    if (!(navigator as any).bluetooth) {
+    if (!(navigator as Navigator & { bluetooth?: { requestDevice: (options: unknown) => Promise<BluetoothDevice> } }).bluetooth) {
       setStatusMessage('Browser ini tidak mendukung Web Bluetooth API.');
       setIsScanning(false);
       return;
     }
 
     try {
-      const device = await (navigator as any).bluetooth.requestDevice({
+      const device = await (navigator as Navigator & { bluetooth: { requestDevice: (options: unknown) => Promise<BluetoothDevice> } }).bluetooth.requestDevice({
         filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
         optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
       });
@@ -67,8 +67,8 @@ const PrinterSettings: React.FC = () => {
         });
         setStatusMessage(`Terhubung ke: ${device.name}`);
       }
-    } catch (error: any) {
-      if (error.name === 'NotFoundError' || error.message?.includes('No device selected')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && (error.name === 'NotFoundError' || error.message?.includes('No device selected'))) {
         setStatusMessage('Pencarian dibatalkan.');
         return;
       }
@@ -83,14 +83,14 @@ const PrinterSettings: React.FC = () => {
       setIsScanning(true);
       setStatusMessage('Mencari perangkat USB...');
 
-      if (!(navigator as any).usb) {
+      if (!(navigator as Navigator & { usb?: { requestDevice: (options: unknown) => Promise<USBDevice> } }).usb) {
           setStatusMessage('Browser ini tidak mendukung WebUSB API.');
           setIsScanning(false);
           return;
       }
 
       try {
-          const device = await (navigator as any).usb.requestDevice({ filters: [] });
+          const device = await (navigator as Navigator & { usb: { requestDevice: (options: unknown) => Promise<USBDevice> } }).usb.requestDevice({ filters: [] });
           if (device) {
               await device.open();
               updatePrinterConfig({
@@ -101,8 +101,8 @@ const PrinterSettings: React.FC = () => {
               setStatusMessage(`Terhubung ke: ${device.productName}`);
               await device.close();
           }
-      } catch (error: any) {
-          if (error.name === 'NotFoundError' || error.message?.includes('No device selected')) {
+      } catch (error: unknown) {
+          if (error instanceof Error && (error.name === 'NotFoundError' || error.message?.includes('No device selected'))) {
             setStatusMessage('Pencarian dibatalkan.');
             return;
           }

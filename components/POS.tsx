@@ -1,11 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Search, ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Minus, Plus, X as XIcon, ArrowRight, Printer, Tag, Percent, CalendarClock, Download, Smartphone, Users, Bluetooth, AlertTriangle, BadgeDollarSign, Wallet, CheckCircle2, Truck } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Minus, Plus, X as XIcon, Check, ArrowRight, Printer, Tag, Percent, CalendarClock, Download, Smartphone, Users, Bluetooth, AlertTriangle, BadgeDollarSign, Wallet, CheckCircle2, Truck } from 'lucide-react';
 import { CartItem, Product, ProductCategory, User as UserType, Receivable, PrinterConnection, Customer } from '../types';
 import { useStore } from '../StoreContext';
 import { jsPDF } from "jspdf";
 import { PrinterService } from '../utils/printer';
-import Distribution from './Distribution';
 
 interface POSProps {
     user: UserType;
@@ -14,29 +13,28 @@ interface POSProps {
 const generateTransactionId = () => `INV-${Math.floor(1000 + Math.random() * 9000)}`;
 
 const POS: React.FC<POSProps> = ({ user }) => {
-  const { products, addTransaction, outlets, receivables, payReceivable, printerConfig, customers, addSystemLog, showToast } = useStore();
+  const { products, addTransaction, outlets, receivables, payReceivable, printerConfig, customers, addSystemLog, confirm } = useStore();
   const [cart, setCart] = useState<CartItem[]>([]);
   // ... existing state
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
-  const [selectedPayment, setSelectedPayment] = useState<'Tunai' | 'QRIS' | 'Debit' | 'Piutang' | 'E-Wallet'>('Tunai');
+  const [selectedPayment, setSelectedPayment] = useState<'Tunai' | 'QRIS' | 'Transfer' | 'Piutang'>('Tunai');
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Modals for Payments
   const [showReceipt, setShowReceipt] = useState(false);
   const [showQrisModal, setShowQrisModal] = useState(false);
-  const [showDebitModal, setShowDebitModal] = useState(false);
-  const [showEWalletModal, setShowEWalletModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   
   const [lastTransactionId, setLastTransactionId] = useState<string>('');
   
-  // Debit State
-  const [debitBank, setDebitBank] = useState('BCA');
-  const [debitRef, setDebitRef] = useState('');
+  // Transfer State (Combined Debit & E-Wallet)
+  const [transferType, setTransferType] = useState<'Bank' | 'E-Wallet'>('Bank');
+  const [transferBank, setTransferBank] = useState('BCA');
+  const [transferRef, setTransferRef] = useState('');
 
   // E-Wallet State
   const [eWalletProvider, setEWalletProvider] = useState<'Gopay' | 'OVO' | 'Dana' | 'ShopeePay'>('Gopay');
-  const [eWalletPhone, setEWalletPhone] = useState('');
 
   // New Customer & Discount State
   const [customerName, setCustomerName] = useState('Umum');
@@ -62,6 +60,9 @@ const POS: React.FC<POSProps> = ({ user }) => {
   const [currentCustomerTotalDebt, setCurrentCustomerTotalDebt] = useState(0); // New State for Total Debt Display
   const [paymentAmount, setPaymentAmount] = useState<{ [id: string]: number }>({}); 
 
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
+  const toastTimeoutRef = useRef<number | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   // Identify Current Outlet
@@ -75,9 +76,19 @@ const POS: React.FC<POSProps> = ({ user }) => {
   // Initialize Printer Service
   const printerService = new PrinterService(printerConfig);
 
+  const showToast = (message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, show: true });
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 2500);
+  };
+
   const handleConnectPrinter = () => {
       // Redirect to settings for full config
-      showToast("Silakan atur koneksi printer di menu Settings > Printer Config", "info");
+      alert("Silakan atur koneksi printer di menu Settings > Printer Config");
   };
 
   const addToCart = (product: Product) => {
@@ -177,32 +188,31 @@ const POS: React.FC<POSProps> = ({ user }) => {
       
       const typeText = isFullPayment ? "PELUNASAN" : "PEMBAYARAN CICILAN";
       
-      setConfirmData({
-          isOpen: true,
-          title: 'Konfirmasi Pembayaran Hutang',
-          message: `Konfirmasi ${typeText} sebesar Rp ${amountToPay.toLocaleString()}?`,
-          onConfirm: () => {
-              payReceivable(debtId, amountToPay);
-              showToast(isFullPayment ? "Hutang LUNAS!" : "Pembayaran cicilan berhasil", 'success');
-              
-              // Refresh list locally
-              const updatedDebts = customerDebts.map(d => {
-                  if (d.id === debtId) {
-                      const remaining = d.amount - amountToPay;
-                      return remaining <= 0 ? null : { ...d, amount: remaining };
-                  }
-                  return d;
-              }).filter(Boolean) as Receivable[];
-              
-              setCustomerDebts(updatedDebts);
-              // Recalculate total debt
-              const newTotal = updatedDebts.reduce((sum, r) => sum + r.amount, 0);
-              setCurrentCustomerTotalDebt(newTotal);
-              
-              // Clear input
-              setPaymentAmount(prev => ({...prev, [debtId]: 0}));
-          }
+      confirm({
+        title: `Konfirmasi ${typeText}`,
+        message: `Apakah Anda yakin ingin melakukan ${typeText} sebesar Rp ${amountToPay.toLocaleString()}?`,
+        onConfirm: () => {
+          payReceivable(debtId, amountToPay);
+          showToast(isFullPayment ? "Hutang LUNAS!" : "Pembayaran cicilan berhasil");
+          
+          // Refresh list locally
+          const updatedDebts = customerDebts.map(d => {
+              if (d.id === debtId) {
+                  const remaining = d.amount - amountToPay;
+                  return remaining <= 0 ? null : { ...d, amount: remaining };
+              }
+              return d;
+          }).filter(Boolean) as Receivable[];
+          
+          setCustomerDebts(updatedDebts);
+          // Recalculate total debt
+          const newTotal = updatedDebts.reduce((sum, r) => sum + r.amount, 0);
+          setCurrentCustomerTotalDebt(newTotal);
+        }
       });
+          
+          // Clear input
+          setPaymentAmount(prev => ({...prev, [debtId]: 0}));
   };
 
   const handleInputChange = (id: string, val: string) => {
@@ -234,10 +244,8 @@ const POS: React.FC<POSProps> = ({ user }) => {
           processTransaction();
       } else if (selectedPayment === 'QRIS') {
           setShowQrisModal(true);
-      } else if (selectedPayment === 'Debit') {
-          setShowDebitModal(true);
-      } else if (selectedPayment === 'E-Wallet') {
-          setShowEWalletModal(true);
+      } else if (selectedPayment === 'Transfer') {
+          setShowTransferModal(true);
       } else if (selectedPayment === 'Piutang') {
           const selectedDate = new Date(dueDate);
           const minDate = new Date(); minDate.setDate(minDate.getDate() + 2);
@@ -279,8 +287,8 @@ const POS: React.FC<POSProps> = ({ user }) => {
         customerType: customerType,
         outletId: user.outletId,
         dueDate: selectedPayment === 'Piutang' ? dueDate : undefined,
-        bankName: selectedPayment === 'Debit' ? debitBank : (selectedPayment === 'E-Wallet' ? eWalletProvider : undefined),
-        bankRef: (selectedPayment === 'Debit' || selectedPayment === 'E-Wallet') ? (selectedPayment === 'Debit' ? debitRef : eWalletPhone) : undefined,
+        bankName: selectedPayment === 'Transfer' ? (transferType === 'Bank' ? transferBank : eWalletProvider) : undefined,
+        bankRef: selectedPayment === 'Transfer' ? transferRef : undefined,
         cashier: user.name
     };
 
@@ -319,21 +327,14 @@ const POS: React.FC<POSProps> = ({ user }) => {
     setLastTransactionData(transactionData);
     
     setShowQrisModal(false);
-    setShowDebitModal(false);
+    setShowTransferModal(false);
     
     setShowReceipt(true);
     setIsProcessing(false);
 
     // Auto Print Check
     if (printerConfig.autoPrint) {
-        printerService.print(transactionData).catch(err => {
-            console.error('Auto print failed:', err);
-            if (err.message === 'PRINTER_NOT_CONFIGURED') {
-                showToast('Printer belum dikonfigurasi', 'info');
-            } else {
-                showToast('Gagal cetak otomatis', 'error');
-            }
-        });
+        printerService.print(transactionData);
     }
 
     if (selectedPayment === 'Piutang' || (customerType === 'Tetap' && customerPhone)) {
@@ -465,12 +466,12 @@ const POS: React.FC<POSProps> = ({ user }) => {
       setCustomerPhone('');
       setDiscountValue(0);
       setDownPayment(0);
-      setDebitRef('');
+      setTransferRef('');
       setCurrentCustomerTotalDebt(0);
       showToast('Transaksi Selesai');
   }
 
-  const handlePrintBT = async () => {
+  const handlePrintThermal = () => {
       // Use lastTransactionData if available to ensure consistency
       const dataToPrint = {
           transactionId: lastTransactionId,
@@ -479,23 +480,7 @@ const POS: React.FC<POSProps> = ({ user }) => {
           items: cart
       };
       
-      try {
-        await printerService.print(dataToPrint);
-        showToast('Cetak Berhasil', 'success');
-      } catch (err: any) {
-        if (err.message === 'PRINTER_NOT_CONFIGURED') {
-            setConfirmData({
-                title: 'Printer Belum Siap',
-                message: 'Printer belum dikonfigurasi. Lanjutkan menggunakan dialog cetak sistem (Browser)?',
-                onConfirm: () => {
-                    setConfirmData(null);
-                    window.print();
-                }
-            });
-        } else {
-            showToast(err.message || 'Gagal mencetak', 'error');
-        }
-      }
+      printerService.print(dataToPrint);
   }
 
   const handlePrintSystem = useReactToPrint({
@@ -527,6 +512,18 @@ const POS: React.FC<POSProps> = ({ user }) => {
 
   return (
     <div className="flex flex-col lg:flex-row h-full w-full gap-4 relative overflow-hidden min-h-[600px]">
+       {/* Toast Notification */}
+       <div 
+        className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full bg-[#1a1a1a] border border-green-500/30 shadow-2xl transition-all duration-300 transform ${
+          toast.show ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
+        <div className="bg-green-600 rounded-full p-1 text-white">
+          <Check size={14} strokeWidth={3} />
+        </div>
+        <span className="text-white text-sm font-medium tracking-wide">{toast.message}</span>
+      </div>
+
       {/* LEFT SIDE: Product Catalog (Text Only Grid) */}
       <div className="flex-1 flex flex-col gap-3 min-w-0 order-2 lg:order-1 h-full overflow-hidden">
         
@@ -892,14 +889,13 @@ const POS: React.FC<POSProps> = ({ user }) => {
                {[
                   { id: 'Tunai', icon: Banknote, label: 'Tunai' },
                   { id: 'QRIS', icon: QrCode, label: 'QRIS' },
-                  { id: 'Debit', icon: CreditCard, label: 'Debit' },
-                  { id: 'E-Wallet', icon: Smartphone, label: 'E-Wallet' },
+                  { id: 'Transfer', icon: CreditCard, label: 'Transfer' },
                   { id: 'Piutang', icon: CalendarClock, label: 'Tempo / DP' },
                ].map((method) => (
                  <button
                    key={method.id}
                    onClick={() => {
-                       const methodId = method.id as 'Tunai' | 'QRIS' | 'Debit' | 'Piutang' | 'E-Wallet';
+                       const methodId = method.id as 'Tunai' | 'QRIS' | 'Transfer' | 'Piutang';
                        setSelectedPayment(methodId);
                        if (methodId === 'Piutang') {
                            const d = new Date();
@@ -1040,41 +1036,74 @@ const POS: React.FC<POSProps> = ({ user }) => {
           </div>
       )}
 
-      {/* 2. Debit Modal */}
-      {showDebitModal && (
+      {/* 2. Transfer Modal */}
+      {showTransferModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
               <div className="bg-[#1e1e1e] border border-white/10 w-full max-w-sm rounded-2xl p-6">
-                  <h3 className="font-bold text-xl text-white mb-6 flex items-center gap-2"><CreditCard /> Pembayaran Debit</h3>
+                  <h3 className="font-bold text-xl text-white mb-6 flex items-center gap-2"><CreditCard /> Pembayaran Transfer</h3>
                   <div className="space-y-4">
                       <div>
-                          <label className="block text-gray-400 text-sm mb-1">Pilih Bank</label>
-                          <div className="grid grid-cols-3 gap-2">
-                              {['BCA', 'Mandiri', 'BRI'].map(bank => (
+                          <label className="block text-gray-400 text-sm mb-1">Tipe Transfer</label>
+                          <div className="grid grid-cols-2 gap-2 mb-4">
+                              {['Bank', 'E-Wallet'].map(type => (
                                   <button 
-                                    key={bank}
-                                    onClick={() => setDebitBank(bank)}
-                                    className={`py-2 rounded border ${debitBank === bank ? 'bg-blue-600 border-blue-600 text-white' : 'border-white/20 text-gray-400'}`}
+                                    key={type}
+                                    onClick={() => setTransferType(type as 'Bank' | 'E-Wallet')}
+                                    className={`py-2 rounded border font-bold ${transferType === type ? 'bg-brand-red border-brand-red text-white' : 'border-white/20 text-gray-400'}`}
                                   >
-                                      {bank}
+                                      {type}
                                   </button>
                               ))}
                           </div>
                       </div>
+
+                      {transferType === 'Bank' ? (
+                        <div>
+                            <label className="block text-gray-400 text-sm mb-1">Pilih Bank</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {['BCA', 'Mandiri', 'BRI'].map(bank => (
+                                    <button 
+                                      key={bank}
+                                      onClick={() => setTransferBank(bank)}
+                                      className={`py-2 rounded border text-xs font-bold ${transferBank === bank ? 'bg-blue-600 border-blue-600 text-white' : 'border-white/20 text-gray-400'}`}
+                                    >
+                                        {bank}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                      ) : (
+                        <div>
+                            <label className="block text-gray-400 text-sm mb-1">Pilih E-Wallet</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {['Gopay', 'OVO', 'Dana', 'ShopeePay'].map(provider => (
+                                    <button 
+                                      key={provider}
+                                      onClick={() => setEWalletProvider(provider as 'Gopay' | 'OVO' | 'Dana' | 'ShopeePay')}
+                                      className={`py-2 rounded border text-xs font-bold ${eWalletProvider === provider ? 'bg-brand-gold border-brand-gold text-black' : 'border-white/20 text-gray-400'}`}
+                                    >
+                                        {provider}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                      )}
+
                       <div>
-                          <label className="block text-gray-400 text-sm mb-1">Nomor Referensi (EDC)</label>
+                          <label className="block text-gray-400 text-sm mb-1">Nomor Referensi (Opsional)</label>
                           <input 
                             type="text" 
                             className="w-full bg-black/50 border border-white/20 rounded p-2 text-white"
-                            value={debitRef}
-                            onChange={(e) => setDebitRef(e.target.value)}
-                            placeholder="Input 4 digit terakhir..."
+                            value={transferRef}
+                            onChange={(e) => setTransferRef(e.target.value)}
+                            placeholder="Input nomor referensi..."
                           />
                       </div>
                       <div className="pt-4">
                           <button onClick={processTransaction} className="w-full py-3 bg-brand-red text-white font-bold rounded-lg hover:bg-red-900">
                               Proses Pembayaran
                           </button>
-                          <button onClick={() => setShowDebitModal(false)} className="w-full mt-3 py-2 text-gray-400 hover:text-white">Batal</button>
+                          <button onClick={() => setShowTransferModal(false)} className="w-full mt-3 py-2 text-gray-400 hover:text-white">Batal</button>
                       </div>
                   </div>
               </div>
@@ -1178,21 +1207,21 @@ const POS: React.FC<POSProps> = ({ user }) => {
                   </div>
 
                   {/* ACTION BUTTONS (NO PRINT) */}
-                  <div className="mt-6 space-y-3 no-print">
-                     <div className="grid grid-cols-3 gap-2">
-                       <button onClick={handlePrintBT} className="py-3 bg-black text-white rounded-lg font-bold hover:bg-gray-800 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
-                          <Printer size={16} /> 
-                          <span>Cetak (BT)</span>
-                       </button>
-                       <button onClick={handlePrintSystem} className="py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-600 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
-                          <Printer size={16} /> 
-                          <span>Cetak (Canon)</span>
-                       </button>
-                       <button onClick={generateReceiptPDF} className="py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
-                          <Download size={16} /> 
-                          <span>PDF</span>
-                       </button>
-                     </div>
+                      <div className="mt-6 space-y-3 no-print">
+                         <div className="grid grid-cols-3 gap-2">
+                           <button onClick={handlePrintThermal} className="py-3 bg-black text-white rounded-lg font-bold hover:bg-gray-800 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
+                              <Printer size={16} /> 
+                              <span>Thermal</span>
+                           </button>
+                           <button onClick={handlePrintSystem} className="py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-600 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
+                              <Printer size={16} /> 
+                              <span>Standard</span>
+                           </button>
+                           <button onClick={generateReceiptPDF} className="py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 flex flex-col items-center justify-center gap-1 text-[10px] shadow-lg">
+                              <Download size={16} /> 
+                              <span>PDF</span>
+                           </button>
+                         </div>
                      <button onClick={closeReceipt} className="w-full py-2 bg-gray-100 text-black rounded-lg font-bold hover:bg-gray-200 text-sm border border-gray-300">
                         Tutup / Transaksi Baru
                      </button>
@@ -1201,77 +1230,6 @@ const POS: React.FC<POSProps> = ({ user }) => {
             </div>
          </div>
       )}
-      
-      {/* E-Wallet Modal */}
-      {showEWalletModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-          <div className="bg-[#1e1e1e] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Smartphone className="text-brand-gold" /> Konfirmasi E-Wallet
-              </h3>
-              <button onClick={() => setShowEWalletModal(false)} className="text-gray-400 hover:text-white">
-                <XIcon size={24} />
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-3">
-                {['Gopay', 'OVO', 'Dana', 'ShopeePay'].map((provider) => (
-                  <button
-                    key={provider}
-                    onClick={() => setEWalletProvider(provider as 'Gopay' | 'OVO' | 'Dana' | 'ShopeePay')}
-                    className={`p-4 rounded-xl border transition-all text-center font-bold ${
-                      eWalletProvider === provider
-                        ? 'bg-brand-gold text-black border-brand-gold'
-                        : 'bg-black/30 text-gray-400 border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    {provider}
-                  </button>
-                ))}
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Nomor HP / ID</label>
-                <input
-                  type="text"
-                  placeholder="08xx..."
-                  value={eWalletPhone}
-                  onChange={(e) => setEWalletPhone(e.target.value)}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white text-lg focus:border-brand-gold outline-none"
-                />
-              </div>
-
-              <div className="bg-black/40 p-4 rounded-xl border border-white/5">
-                <div className="flex justify-between text-gray-400 text-sm mb-1">
-                  <span>Total Tagihan</span>
-                  <span>Rp {total.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-white font-bold text-lg">
-                  <span>Total Bayar</span>
-                  <span className="text-brand-gold">Rp {total.toLocaleString()}</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowEWalletModal(false);
-                  processTransaction();
-                }}
-                disabled={!eWalletPhone}
-                className="w-full py-4 bg-brand-gold text-black font-black rounded-xl shadow-lg shadow-brand-gold/20 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest"
-              >
-                Konfirmasi Pembayaran
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Distribution Module Section */}
-      <div className="w-full mt-6 bg-[#1e1e1e] border border-white/5 rounded-xl p-6 order-3 lg:col-span-2">
-          <Distribution />
-      </div>
     </div>
   );
 };

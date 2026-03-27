@@ -1,15 +1,13 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye, Truck, X as XIcon } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Shield, Users, Globe, Lock, ToggleLeft, ToggleRight, Printer, FileText, Search, Download, FileBarChart, Package, Calculator, CheckCircle, Store, Trash2, MapPin, User as UserIcon, Key, Target, Beef, History, Eye, X as XIcon, Database, Building2 } from 'lucide-react';
 import { Role, Outlet, PrinterConnection, PrintingData, User, GalleryItem, LoyaltyProgram } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PrinterSettings from './PrinterSettings';
-import Distribution from './Distribution';
 import { updateUser } from '../services/auth';
-import ConfirmModal from './ConfirmModal';
 
 const PrintContent = React.forwardRef(({ printingData, paperSize }: { printingData: PrintingData | null; paperSize: string }, ref: React.Ref<HTMLDivElement>) => {
     if (!printingData) return null;
@@ -69,16 +67,43 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ user }) => {
-  const { products, transactions, employees, expenses, receivables, outlets, addOutlet, updateOutlet, appSettings, updateAppSettings, updateRolePermissions, printerConfig, galleryItems, addGalleryItem, updateGalleryItem, deleteGalleryItem, loyaltyPrograms, addLoyaltyProgram, updateLoyaltyProgram, deleteLoyaltyProgram, cattleTypes, addCattleType, deleteCattleType, systemLogs, employeeFinancials, cattleOrders, showToast } = useStore();
+  const { 
+    products, 
+    transactions, 
+    employees, 
+    expenses, 
+    receivables, 
+    outlets, 
+    addOutlet, 
+    updateOutlet, 
+    deleteOutlet,
+    appSettings, 
+    updateAppSettings, 
+    updateRolePermissions, 
+    printerConfig, 
+    galleryItems, 
+    addGalleryItem, 
+    updateGalleryItem, 
+    deleteGalleryItem, 
+    loyaltyPrograms, 
+    addLoyaltyProgram, 
+    updateLoyaltyProgram, 
+    deleteLoyaltyProgram, 
+    cattleTypes, 
+    addCattleType, 
+    deleteCattleType, 
+    systemLogs, 
+    employeeFinancials, 
+    cattleOrders,
+    initializeMeatProducts,
+    initializeEmployees,
+    users,
+    attendance,
+    confirm
+  } = useStore();
   
   const canEditSettings = user?.username === 'rudiaf';
-  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs' | 'distribution'>(canEditSettings ? 'general' : 'print');
-  
-  // Confirmation Modal State
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
-  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
-    setConfirmModal({ isOpen: true, title, message, onConfirm });
-  };
+  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'print' | 'outlets' | 'gallery' | 'loyalty' | 'master' | 'logs'>(canEditSettings ? 'general' : 'print');
   
   // Print Config State with Persistence
   const paperSize = printerConfig.type;
@@ -126,7 +151,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   const [logFilterType, setLogFilterType] = useState<string>('Semua');
   const [logStartDate] = useState('');
   const [logEndDate] = useState('');
-  const [selectedLogEntry, setSelectedLogEntry] = useState<any | null>(null);
+  const [selectedLogEntry, setSelectedLogEntry] = useState<SystemLog | null>(null);
 
   // Sync permissions when appSettings loads
   useEffect(() => {
@@ -146,57 +171,57 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   };
 
     const handleBackupDatabase = () => {
-        showConfirm(
-            'Backup Database',
-            'Apakah Anda yakin ingin melakukan Backup Database sekarang? File backup akan diunduh secara otomatis.',
-            () => {
-                const data = {
-                    settings: appSettings,
-                    outlets,
-                    users,
-                    products,
-                    transactions,
-                    receivables,
-                    expenses,
-                    employees,
-                    attendance,
-                    systemLogs,
-                    timestamp: new Date().toISOString()
-                };
-                
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `backup_subaru_${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                addSystemLog({
-                    id: `log-${Date.now()}`,
-                    userId: user.id,
-                    userName: user.name,
-                    role: user.role,
-                    action: 'SYSTEM',
-                    details: 'Backup Database Berhasil',
-                    timestamp: new Date().toISOString(),
-                    ip: '127.0.0.1',
-                    location: 'Settings',
-                    device: 'Web'
-                });
-                
-                showToast('Backup Database Berhasil!', 'success');
-            }
-        );
-    };
+        confirm({
+            title: 'Backup Database',
+            message: 'Apakah Anda yakin ingin melakukan Backup Database sekarang? File backup akan diunduh secara otomatis.',
+            onConfirm: () => {
+            const data = {
+                settings: appSettings,
+                outlets,
+                users,
+                products,
+                transactions,
+                receivables,
+                expenses,
+                employees,
+                attendance,
+                systemLogs,
+                timestamp: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_subaru_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            addSystemLog({
+                id: `log-${Date.now()}`,
+                userId: user.id,
+                userName: user.name,
+                role: user.role,
+                action: 'SYSTEM',
+                details: 'Backup Database Berhasil',
+                timestamp: new Date().toISOString(),
+                ip: '127.0.0.1',
+                location: 'Settings',
+                device: 'Web'
+            });
+            
+            alert('Backup Database Berhasil!');
+        }
+    });
+};
 
     const handleDeleteOldLogs = () => {
-        showConfirm(
-            'Bersihkan Log',
-            'Apakah Anda yakin ingin menghapus log sistem yang sudah lebih dari 30 hari? Tindakan ini tidak dapat dibatalkan.',
-            () => {
+        confirm({
+            title: 'Hapus Log Lama',
+            message: 'Apakah Anda yakin ingin menghapus log sistem yang sudah lebih dari 30 hari? Tindakan ini tidak dapat dibatalkan.',
+            onConfirm: () => {
                 // Logic to delete old logs (mocked for now, but should call store function)
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -216,19 +241,19 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                     device: 'Web'
                 });
                 
-                showToast('Log lama berhasil dibersihkan!', 'success');
+                alert('Log lama berhasil dibersihkan!');
             }
-        );
+        });
     };
 
     const handleSaveGalleryItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!galleryForm.title || !galleryForm.imageUrl) return;
     
-    showConfirm(
-        editingGalleryItem ? 'Update Item' : 'Tambah Item',
-        `Apakah Anda yakin ingin ${editingGalleryItem ? 'mengupdate' : 'menambah'} item gallery ini?`,
-        () => {
+    confirm({
+        title: 'Konfirmasi Gallery',
+        message: `Apakah Anda yakin ingin ${editingGalleryItem ? 'mengupdate' : 'menambah'} item gallery ini?`,
+        onConfirm: () => {
             const item: GalleryItem = {
                 id: editingGalleryItem?.id || `G-${Date.now()}`,
                 title: galleryForm.title!,
@@ -248,19 +273,18 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
             setIsGalleryModalOpen(false);
             setEditingGalleryItem(null);
             setGalleryForm({ title: '', subtitle: '', imageUrl: '', content: '', category: 'Kegiatan' });
-            showToast(`Gallery item berhasil ${editingGalleryItem ? 'diupdate' : 'ditambah'}`, 'success');
         }
-    );
+    });
   };
 
-    const handleSaveLoyaltyProgram = (e: React.FormEvent) => {
+  const handleSaveLoyaltyProgram = (e: React.FormEvent) => {
     e.preventDefault();
     if (!loyaltyForm.title || !loyaltyForm.reward) return;
 
-    showConfirm(
-        editingLoyaltyProgram ? 'Update Program' : 'Tambah Program',
-        `Apakah Anda yakin ingin ${editingLoyaltyProgram ? 'mengupdate' : 'menambah'} program loyalty ini?`,
-        () => {
+    confirm({
+        title: 'Konfirmasi Loyalty',
+        message: `Apakah Anda yakin ingin ${editingLoyaltyProgram ? 'mengupdate' : 'menambah'} program loyalty ini?`,
+        onConfirm: () => {
             const program: LoyaltyProgram = {
                 id: editingLoyaltyProgram?.id || `LP-${Date.now()}`,
                 title: loyaltyForm.title!,
@@ -272,7 +296,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
             };
 
             if (editingLoyaltyProgram) {
-                updateLoyaltyProgram(program.id, program);
+                updateLoyaltyProgram(program);
             } else {
                 addLoyaltyProgram(program);
             }
@@ -280,14 +304,13 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
             setIsLoyaltyModalOpen(false);
             setEditingLoyaltyProgram(null);
             setLoyaltyForm({ title: '', description: '', targetKg: 300, durationMonths: 6, reward: '', isActive: true });
-            showToast(`Program loyalty berhasil ${editingLoyaltyProgram ? 'diupdate' : 'ditambah'}`, 'success');
         }
-    );
+    });
   };
 
   // --- HISTORY LOG DATA ---
   const allActivities = useMemo(() => {
-    const logs: any[] = [];
+    const logs: { id: string; date: string; timestamp: number; type: string; reference: string; description?: string; amount?: number; customer?: string; category?: string; user?: string }[] = [];
 
     // 1. Transactions (Penjualan)
     transactions.forEach(t => {
@@ -411,10 +434,10 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   };
 
   const handleUpdatePermissions = async () => {
-        showConfirm(
-            'Update Hak Akses',
-            'Apakah Anda yakin ingin mengupdate hak akses (RBAC) untuk semua role?',
-            async () => {
+        confirm({
+            title: 'Update Hak Akses',
+            message: 'Apakah Anda yakin ingin mengupdate hak akses (RBAC) untuk semua role?',
+            onConfirm: async () => {
                 setIsSaving(true);
                 try {
                     await updateRolePermissions(permissions);
@@ -432,24 +455,24 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                         device: 'Web'
                     });
                     
-                    showToast('Permissions updated successfully!', 'success');
+                    alert('Permissions updated successfully!');
                 } catch (error) {
                     console.error('Error updating permissions:', error);
-                    showToast('Gagal mengupdate permissions. Silakan coba lagi.', 'error');
+                    alert('Gagal mengupdate permissions. Silakan coba lagi.');
                 } finally {
                     setIsSaving(false);
                 }
             }
-        );
+        });
     };
 
   const handleAddOutlet = (e: React.FormEvent) => {
       e.preventDefault();
       if(!newOutlet.name) return;
-      showConfirm(
-          'Tambah Gerai',
-          'Apakah Anda yakin ingin menambahkan gerai baru ini?',
-          () => {
+      confirm({
+          title: 'Tambah Gerai',
+          message: 'Apakah Anda yakin ingin menambahkan gerai baru ini?',
+          onConfirm: () => {
               addOutlet({
                   id: `OUTLET-${new Date().getTime()}`,
                   name: newOutlet.name!,
@@ -458,45 +481,49 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                   radius: newOutlet.radius || 100
               });
               setNewOutlet({ name: '', address: '', phone: '', radius: 100 });
-              showToast("Gerai baru berhasil ditambahkan!", 'success');
+              alert("Gerai baru berhasil ditambahkan!");
           }
-      );
+      });
   };
 
   const handleChangePassword = async () => {
       if (newPassword !== confirmPassword) {
-          showToast("Password tidak cocok!", 'error');
+          alert("Password tidak cocok!");
           return;
       }
       if (newPassword.length < 6) {
-          showToast("Password minimal 6 karakter!", 'error');
+          alert("Password minimal 6 karakter!");
           return;
       }
       
-      showConfirm(
-          'Ubah Password',
-          'Apakah Anda yakin ingin mengubah password Anda? Anda akan diminta untuk login ulang.',
-          async () => {
+      confirm({
+          title: 'Ubah Password',
+          message: 'Apakah Anda yakin ingin mengubah password Anda? Anda akan diminta untuk login ulang.',
+          onConfirm: async () => {
               const success = await updateUser(user.id, { password: newPassword });
               if (success) {
-                  showToast("Password berhasil diubah! Silakan login ulang.", 'success');
+                  alert("Password berhasil diubah! Silakan login ulang.");
                   setIsPasswordModalOpen(false);
                   setNewPassword('');
                   setConfirmPassword('');
                   // Optional: Force logout
                   // window.location.reload(); 
               } else {
-                  showToast("Gagal mengubah password. Coba lagi.", 'error');
+                  alert("Gagal mengubah password. Coba lagi.");
               }
           }
-      );
+      });
   };
 
 
     const handleSaveGeneralSettings = () => {
-        showConfirm('Simpan Pengaturan', 'Simpan perubahan pengaturan umum?', () => {
+        confirm({
+          title: 'Simpan Pengaturan',
+          message: 'Simpan perubahan pengaturan umum?',
+          onConfirm: () => {
             updateAppSettings(appSettings);
-            showToast('Pengaturan umum berhasil disimpan!', 'success');
+            alert('Pengaturan umum berhasil disimpan!');
+          }
         });
     };
 
@@ -593,38 +620,29 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
   };
 
   const handlePrintNow = (report: typeof reports[0]) => {
+    const startPrint = () => {
+        const data = report.getData();
+        setPrintingData({
+            title: report.title,
+            columns: data.head[0],
+            rows: data.body
+        });
+
+        // Wait for portal to render then print
+        setTimeout(() => {
+            handlePrint();
+        }, 500);
+    };
+
     if (printerConfig.connection !== PrinterConnection.SYSTEM && !printerConfig.deviceName) {
-        showConfirm(
-            "Printer Terputus",
-            "Status Printer: Terputus. Lanjutkan menggunakan dialog cetak browser standar?",
-            () => {
-                const data = report.getData();
-                setPrintingData({
-                    title: report.title,
-                    columns: data.head[0],
-                    rows: data.body
-                });
-
-                // Wait for portal to render then print
-                setTimeout(() => {
-                    handlePrint();
-                }, 500);
-            }
-        );
-        return;
+        confirm({
+            title: 'Printer Terputus',
+            message: 'Status Printer: Terputus. Lanjutkan menggunakan dialog cetak browser standar?',
+            onConfirm: startPrint
+        });
+    } else {
+        startPrint();
     }
-
-    const data = report.getData();
-    setPrintingData({
-        title: report.title,
-        columns: data.head[0],
-        rows: data.body
-    });
-
-    // Wait for portal to render then print
-    setTimeout(() => {
-        handlePrint();
-    }, 500);
   };
 
   return (
@@ -654,7 +672,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                     activeTab === 'outlets' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
                   }`}
                 >
-                  <Store size={16} /> Outlet / Gerai
+                  <Store size={16} /> Kantor / Gerai
                 </button>
                 <button 
                   onClick={() => setActiveTab('gallery')}
@@ -699,14 +717,6 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
             </>
         )}
         <button 
-          onClick={() => setActiveTab('distribution')}
-          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
-            activeTab === 'distribution' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
-          }`}
-        >
-          <Truck size={16} /> Distribusi Armada
-        </button>
-        <button 
           onClick={() => setActiveTab('print')}
           className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
             activeTab === 'print' ? 'border-brand-red text-white' : 'border-transparent text-gray-500 hover:text-white'
@@ -718,7 +728,6 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === 'distribution' && <Distribution />}
         {activeTab === 'general' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* User Profile Section */}
@@ -875,14 +884,14 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                     </div>
                     <button 
                         onClick={() => { 
-                            showConfirm(
-                                'Simpan Radius',
-                                'Simpan pengaturan radius absensi?',
-                                () => {
+                            confirm({
+                                title: 'Simpan Radius',
+                                message: 'Simpan pengaturan radius absensi?',
+                                onConfirm: () => {
                                     updateAppSettings({ attendanceRadius: appSettings.attendanceRadius }); 
-                                    showToast('Radius berhasil disimpan!', 'success'); 
+                                    alert('Radius berhasil disimpan!'); 
                                 }
-                            );
+                            });
                         }}
                         className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center transition-colors"
                         title="Konfirmasi Radius"
@@ -909,106 +918,185 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
         {activeTab === 'outlets' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* List Outlets */}
-                <div className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden">
-                    <div className="p-4 bg-[#252525] border-b border-white/5">
-                        <h3 className="text-lg font-medium text-white">Daftar Gerai Aktif</h3>
+                <div className="space-y-6">
+                    {/* Static Outlets */}
+                    <div className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden">
+                        <div className="p-4 bg-[#252525] border-b border-white/5">
+                            <h3 className="text-lg font-medium text-white">Kantor & RPH (Tetap)</h3>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            {outlets.filter(o => o.isStatic).map(outlet => (
+                                <div key={outlet.id} className="p-4 bg-black/20 border border-white/5 rounded-lg flex items-start gap-4">
+                                    <div className="bg-brand-gold/20 p-2 rounded-lg text-brand-gold">
+                                        <Building2 size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-start">
+                                            <h4 className="text-white font-bold">{outlet.name}</h4>
+                                            <span className="text-[10px] bg-brand-gold/10 text-brand-gold px-2 py-0.5 rounded border border-brand-gold/20">Sistem</span>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-1">{outlet.address}</p>
+                                        <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-gray-500">Lat:</span>
+                                                <input 
+                                                    type="number" step="any"
+                                                    className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
+                                                    placeholder="Latitude"
+                                                    defaultValue={outlet.coordinates?.lat}
+                                                    onBlur={(e) => {
+                                                        const lat = parseFloat(e.target.value);
+                                                        if (!isNaN(lat)) {
+                                                            updateOutlet({ 
+                                                                ...outlet, 
+                                                                coordinates: { lat, lng: outlet.coordinates?.lng || 0 } 
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-gray-500">Lng:</span>
+                                                <input 
+                                                    type="number" step="any"
+                                                    className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
+                                                    placeholder="Longitude"
+                                                    defaultValue={outlet.coordinates?.lng}
+                                                    onBlur={(e) => {
+                                                        const lng = parseFloat(e.target.value);
+                                                        if (!isNaN(lng)) {
+                                                            updateOutlet({ 
+                                                                ...outlet, 
+                                                                coordinates: { lat: outlet.coordinates?.lat || 0, lng } 
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                    <div className="p-4 space-y-3">
-                        {outlets.map(outlet => (
-                            <div key={outlet.id} className="p-4 bg-black/20 border border-white/5 rounded-lg flex items-start gap-4">
-                                <div className="bg-brand-red/20 p-2 rounded-lg text-brand-red">
-                                    <Store size={24} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <h4 className="text-white font-bold">{outlet.name}</h4>
-                                        {outlet.coordinates && (
-                                            <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded border border-green-500/20">GPS Aktif</span>
-                                        )}
+
+                    {/* Dynamic Outlets */}
+                    <div className="bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden">
+                        <div className="p-4 bg-[#252525] border-b border-white/5">
+                            <h3 className="text-lg font-medium text-white">Daftar Gerai</h3>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            {outlets.filter(o => !o.isStatic).map(outlet => (
+                                <div key={outlet.id} className="p-4 bg-black/20 border border-white/5 rounded-lg flex items-start gap-4">
+                                    <div className="bg-brand-red/20 p-2 rounded-lg text-brand-red">
+                                        <Store size={24} />
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-1">{outlet.address}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{outlet.phone}</p>
-                                    {outlet.coordinates && (
-                                        <p className="text-[10px] text-brand-gold mt-1 font-mono">
-                                            Coord: {outlet.coordinates.lat}, {outlet.coordinates.lng}
-                                        </p>
-                                    )}
-                                    <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-[10px] text-gray-500">Lat:</span>
-                                            <input 
-                                                type="number" step="any"
-                                                className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
-                                                placeholder="Latitude"
-                                                defaultValue={outlet.coordinates?.lat}
-                                                onBlur={(e) => {
-                                                    const lat = parseFloat(e.target.value);
-                                                    if (!isNaN(lat)) {
-                                                        updateOutlet(outlet.id, { 
-                                                            coordinates: { lat, lng: outlet.coordinates?.lng || 0 } 
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-start">
+                                            <h4 className="text-white font-bold">{outlet.name}</h4>
+                                            <div className="flex gap-2">
+                                                {outlet.coordinates && (
+                                                    <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded border border-green-500/20">GPS Aktif</span>
+                                                )}
+                                                <button 
+                                                    onClick={() => {
+                                                        confirm({
+                                                            title: 'Hapus Gerai',
+                                                            message: `Apakah Anda yakin ingin menghapus gerai ${outlet.name}?`,
+                                                            onConfirm: () => deleteOutlet(outlet.id)
                                                         });
-                                                    }
-                                                }}
-                                            />
+                                                    }}
+                                                    className="text-red-500 hover:bg-red-500/10 p-1 rounded transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-[10px] text-gray-500">Lng:</span>
-                                            <input 
-                                                type="number" step="any"
-                                                className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
-                                                placeholder="Longitude"
-                                                defaultValue={outlet.coordinates?.lng}
-                                                onBlur={(e) => {
-                                                    const lng = parseFloat(e.target.value);
-                                                    if (!isNaN(lng)) {
-                                                        updateOutlet(outlet.id, { 
-                                                            coordinates: { lat: outlet.coordinates?.lat || 0, lng } 
-                                                        });
-                                                    }
-                                                }}
-                                            />
+                                        <p className="text-xs text-gray-400 mt-1">{outlet.address}</p>
+                                        <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-gray-500">Lat:</span>
+                                                <input 
+                                                    type="number" step="any"
+                                                    className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
+                                                    placeholder="Latitude"
+                                                    defaultValue={outlet.coordinates?.lat}
+                                                    onBlur={(e) => {
+                                                        const lat = parseFloat(e.target.value);
+                                                        if (!isNaN(lat)) {
+                                                            updateOutlet({ 
+                                                                ...outlet, 
+                                                                coordinates: { lat, lng: outlet.coordinates?.lng || 0 } 
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-gray-500">Lng:</span>
+                                                <input 
+                                                    type="number" step="any"
+                                                    className="w-24 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
+                                                    placeholder="Longitude"
+                                                    defaultValue={outlet.coordinates?.lng}
+                                                    onBlur={(e) => {
+                                                        const lng = parseFloat(e.target.value);
+                                                        if (!isNaN(lng)) {
+                                                            updateOutlet({ 
+                                                                ...outlet, 
+                                                                coordinates: { lat: outlet.coordinates?.lat || 0, lng } 
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-gray-500">Radius (m):</span>
+                                                <input 
+                                                    type="number"
+                                                    className="w-16 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
+                                                    placeholder="100"
+                                                    defaultValue={outlet.radius || 100}
+                                                    onBlur={(e) => {
+                                                        const radius = parseInt(e.target.value);
+                                                        if (!isNaN(radius)) {
+                                                            updateOutlet({ 
+                                                                ...outlet, 
+                                                                radius
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-[10px] text-gray-500">Radius (m):</span>
-                                            <input 
-                                                type="number"
-                                                className="w-16 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-brand-gold outline-none"
-                                                placeholder="100"
-                                                defaultValue={outlet.radius || 100}
-                                                onBlur={(e) => {
-                                                    const radius = parseInt(e.target.value);
-                                                    if (!isNaN(radius)) {
-                                                        updateOutlet(outlet.id, { 
-                                                            radius
-                                                        });
-                                                    }
-                                                }}
-                                            />
-                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                if ('geolocation' in navigator) {
+                                                    navigator.geolocation.getCurrentPosition(
+                                                        (pos) => {
+                                                            const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                                                            updateOutlet({ ...outlet, coordinates: newCoords });
+                                                            alert(`Lokasi ${outlet.name} berhasil diperbarui ke posisi Anda saat ini!`);
+                                                        },
+                                                        (err) => alert("Gagal mendapatkan lokasi: " + err.message)
+                                                    );
+                                                } else {
+                                                    alert("Geolocation tidak didukung browser ini.");
+                                                }
+                                            }}
+                                            className="mt-2 text-[10px] bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600/30 hover:bg-blue-600/30 transition-colors flex items-center gap-1 w-fit"
+                                        >
+                                            <MapPin size={12} /> Set Lokasi Saat Ini
+                                        </button>
                                     </div>
-                                    <p className="text-[10px] text-gray-600 mt-1 font-mono">{outlet.id}</p>
-                                    <button 
-                                        onClick={() => {
-                                            if ('geolocation' in navigator) {
-                                                navigator.geolocation.getCurrentPosition(
-                                                    (pos) => {
-                                                        const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                                                        updateOutlet(outlet.id, { coordinates: newCoords });
-                                                        showToast(`Lokasi ${outlet.name} berhasil diperbarui ke posisi Anda saat ini!`, 'success');
-                                                    },
-                                                    (err) => showToast("Gagal mendapatkan lokasi: " + err.message, 'error')
-                                                );
-                                            } else {
-                                                showToast("Geolocation tidak didukung browser ini.", 'error');
-                                            }
-                                        }}
-                                        className="mt-2 text-[10px] bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600/30 hover:bg-blue-600/30 transition-colors flex items-center gap-1 w-fit"
-                                    >
-                                        <MapPin size={12} /> Set Lokasi Saat Ini
-                                    </button>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                            {outlets.filter(o => !o.isStatic).length === 0 && (
+                                <div className="py-8 text-center text-gray-500 border border-dashed border-white/5 rounded-lg">
+                                    Belum ada gerai tambahan.
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -1344,7 +1432,13 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                       <SettingsIcon size={14} />
                                   </button>
                                   <button 
-                                    onClick={() => { showConfirm('Hapus Item', 'Hapus item ini?', () => deleteGalleryItem(item.id)); }}
+                                    onClick={() => { 
+                                        confirm({
+                                            title: 'Hapus Item',
+                                            message: 'Hapus item ini?',
+                                            onConfirm: () => deleteGalleryItem(item.id)
+                                        });
+                                    }}
                                     className="p-2 bg-black/50 backdrop-blur-md text-white rounded-lg hover:bg-red-600 transition-all"
                                   >
                                       <Trash2 size={14} />
@@ -1412,7 +1506,13 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                                       <SettingsIcon size={16} />
                                   </button>
                                   <button 
-                                    onClick={() => { showConfirm('Hapus Program', 'Hapus program ini?', () => deleteLoyaltyProgram(prog.id)); }}
+                                    onClick={() => { 
+                                        confirm({
+                                            title: 'Hapus Program',
+                                            message: 'Hapus program ini?',
+                                            onConfirm: () => deleteLoyaltyProgram(prog.id)
+                                        });
+                                    }}
                                     className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                                   >
                                       <Trash2 size={16} />
@@ -1518,8 +1618,12 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                             <td className="p-4 text-right">
                               <button 
                                 onClick={() => {
-                                  showConfirm('Hapus Jenis Sapi', `Hapus jenis sapi ${type.name}?`, () => {
-                                    deleteCattleType(type.id);
+                                  confirm({
+                                    title: 'Hapus Jenis Sapi',
+                                    message: `Hapus jenis sapi ${type.name}?`,
+                                    onConfirm: () => {
+                                      deleteCattleType(type.id);
+                                    }
                                   });
                                 }}
                                 className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
@@ -1534,6 +1638,49 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-[#1e1e1e] rounded-2xl border border-white/5 p-6 shadow-xl">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Database className="text-brand-gold" size={24} />
+                Inisialisasi Data Produk
+              </h3>
+              <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl mb-4">
+                <p className="text-sm text-blue-400">
+                  Gunakan fitur ini untuk memasukkan daftar harga produk potongan daging standar ke dalam sistem secara otomatis.
+                </p>
+              </div>
+              <button 
+                onClick={async () => {
+                  confirm({
+                    title: 'Inisialisasi Produk',
+                    message: 'Apakah Anda yakin ingin memasukkan daftar harga produk potongan daging? Produk yang sudah ada tidak akan diduplikasi.',
+                    onConfirm: async () => {
+                      await initializeMeatProducts();
+                      alert('Data produk berhasil diinisialisasi!');
+                    }
+                  });
+                }}
+                className="bg-brand-red hover:bg-red-900 text-white px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-red/20"
+              >
+                <Save size={18} /> Inisialisasi Daftar Harga Daging
+              </button>
+
+              <button 
+                onClick={async () => {
+                  confirm({
+                    title: 'Inisialisasi Karyawan',
+                    message: 'Apakah Anda yakin ingin memasukkan data karyawan? Karyawan yang sudah ada tidak akan diduplikasi.',
+                    onConfirm: async () => {
+                      await initializeEmployees();
+                      alert('Data karyawan berhasil diinisialisasi!');
+                    }
+                  });
+                }}
+                className="bg-brand-gold hover:bg-yellow-600 text-black px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-gold/20"
+              >
+                <Users size={18} /> Inisialisasi Data Karyawan
+              </button>
             </div>
           </div>
         )}
@@ -1774,7 +1921,7 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
                 />
                 <div className="flex justify-end gap-2">
                     <button onClick={() => setIsRoleModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white">Batal</button>
-                    <button onClick={() => { showToast('Custom Role ditambahkan (Simulasi)', 'info'); setIsRoleModalOpen(false); }} className="px-4 py-2 bg-brand-red text-white rounded-lg">Simpan</button>
+                    <button onClick={() => { alert('Custom Role ditambahkan (Simulasi)'); setIsRoleModalOpen(false); }} className="px-4 py-2 bg-brand-red text-white rounded-lg">Simpan</button>
                 </div>
             </div>
         </div>
@@ -1897,17 +2044,6 @@ const Settings: React.FC<SettingsProps> = ({ user }) => {
               </div>
           </div>
       )}
-
-      <ConfirmModal 
-        isOpen={confirmModal?.isOpen || false}
-        title={confirmModal?.title || ''}
-        message={confirmModal?.message || ''}
-        onConfirm={() => {
-          confirmModal?.onConfirm();
-          setConfirmModal(null);
-        }}
-        onCancel={() => setConfirmModal(null)}
-      />
     </div>
   );
 };
