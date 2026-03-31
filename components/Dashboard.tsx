@@ -178,6 +178,7 @@ const Dashboard: React.FC = () => {
               {useStore().outlets
                 .filter(outlet => 
                   outlet.name.toLowerCase().includes('pasar tamin') || 
+                  outlet.name.toLowerCase().includes('pasar way halim') || 
                   outlet.name.toLowerCase().includes('pasar wayhalim') || 
                   outlet.name.toLowerCase().includes('pasar tugu')
                 )
