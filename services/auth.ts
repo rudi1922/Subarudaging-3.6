@@ -3,7 +3,6 @@ import { MOCK_USERS } from '../constants';
 import { supabase } from '../supabase';
 
 // Fallback credentials for Client-Side Login (Prototype Mode)
-// In production, this should ONLY be handled by the server/database
 const MOCK_CREDENTIALS: Record<string, string> = {
   'admin': 'admin123',
   'rudiaf': 'subarualam26'
@@ -11,80 +10,81 @@ const MOCK_CREDENTIALS: Record<string, string> = {
 
 export const authenticateUser = async (username: string, password: string): Promise<User | null> => {
   try {
-    // 1. Try Supabase (Primary)
-    if (import.meta.env.VITE_SUPABASE_URL) {
-        let userDetails: Record<string, unknown> | null = null;
+    // 1. Try Supabase Auth (Primary)
+    let userDetails: Record<string, unknown> | null = null;
 
-        // OPTION A: Using Supabase Auth (Requires Email)
-        if (username.includes('@')) {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: username,
-                password: password
-            });
-            
-            if (data.user && !error) {
-                const { data: details } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('id', data.user.id)
-                    .single();
-                
-                userDetails = details;
-            }
-        } 
-        
-        // OPTION B: Check Custom 'users' table (for non-email usernames like 'admin')
-        if (!userDetails) {
-            const { data: customUser } = await supabase
+    if (username.includes('@')) {
+        const { data } = await supabase.auth.signInWithPassword({
+            email: username,
+            password: password
+        });
+
+        if (data?.user) {
+            const { data: profile } = await supabase
                 .from('users')
                 .select('*')
-                .eq('username', username)
-                .eq('password', password)
+                .eq('id', data.user.id)
                 .single();
             
-            userDetails = customUser;
-        }
-
-        if (userDetails) {
-            // CHECK APPROVAL STATUS
-            const isApproved = userDetails.is_approved ?? userDetails.isApproved;
-            if (isApproved === false) {
-                throw new Error('Menunggu Persetujuan Admin');
+            if (profile) {
+                userDetails = profile;
             }
-
-            // Normalize role
-            let normalizedRole = Role.CASHIER;
-            const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
-            
-            if (dbRole === 'admin') normalizedRole = Role.ADMIN;
-            else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
-            else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
-            else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
-            else if (dbRole === 'staff') normalizedRole = Role.STAFF;
-            else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
-            else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
-            else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
-            else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
-            else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
-
-            const user: User = {
-                id: userDetails.id,
-                name: userDetails.name,
-                username: userDetails.username,
-                role: normalizedRole,
-                avatar: userDetails.avatar || undefined, 
-                employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
-                outletId: userDetails.outlet_id || userDetails.outletId || undefined,
-                isApproved: true,
-                referralCode: userDetails.referral_code || userDetails.referralCode || undefined
-            };
-
-            localStorage.setItem('auth_token', `sb-token-${user.id}`);
-            return user;
         }
     }
 
-    // 2. Fallback: Client-Side Login (For Demo Only)
+    // 2. Check Custom 'users' table (for non-email usernames like 'admin')
+    if (!userDetails) {
+        const { data } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', username)
+            .eq('password', password)
+            .maybeSingle();
+        
+        if (data) {
+            userDetails = data;
+        }
+    }
+
+    if (userDetails) {
+        // CHECK APPROVAL STATUS
+        const isApproved = userDetails.is_approved ?? userDetails.isApproved;
+        if (isApproved === false) {
+            throw new Error('Menunggu Persetujuan Admin');
+        }
+
+        // Normalize role
+        let normalizedRole = Role.CASHIER;
+        const dbRole = (userDetails.role || '').toLowerCase();
+        
+        if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+        else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+        else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+        else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+        else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+        else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+        else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+        else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+        else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+        else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+        const user: User = {
+            id: userDetails.id,
+            name: userDetails.name,
+            username: userDetails.username,
+            role: normalizedRole,
+            avatar: userDetails.avatar || undefined, 
+            employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
+            outletId: userDetails.outlet_id || userDetails.outletId || undefined,
+            isApproved: true,
+            referralCode: userDetails.referral_code || userDetails.referralCode || undefined
+        };
+
+        localStorage.setItem('auth_token', `sb-token-${user.id}`);
+        return user;
+    }
+
+    // 3. Fallback: Mock Login (For Demo Only)
     const validPassword = MOCK_CREDENTIALS[username];
     if (validPassword && validPassword === password) {
         const user = MOCK_USERS.find(u => u.username === username);
@@ -109,114 +109,97 @@ export const authenticateUser = async (username: string, password: string): Prom
 
 export const verifySession = async (): Promise<User | null> => {
   const token = localStorage.getItem('auth_token');
-  
-  // Check Supabase Session
-  if (import.meta.env.VITE_SUPABASE_URL) {
-      try {
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-              // Fetch user details
-                const { data: userDetails } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('id', data.session.user.id)
-                    .single();
-                
-                if (userDetails) {
-                    // CHECK APPROVAL STATUS
-                    const isApproved = userDetails.is_approved ?? userDetails.isApproved;
-                    if (isApproved === false) {
-                        localStorage.removeItem('auth_token');
-                        return null;
-                    }
-
-                    // Normalize role
-                    let normalizedRole = Role.CASHIER;
-                    const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
-                    
-                    if (dbRole === 'admin') normalizedRole = Role.ADMIN;
-                    else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
-                    else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
-                    else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
-                    else if (dbRole === 'staff') normalizedRole = Role.STAFF;
-                    else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
-                    else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
-                    else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
-                    else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
-                    else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
-
-                    return {
-                        id: userDetails.id,
-                        name: userDetails.name,
-                        username: userDetails.username,
-                        role: normalizedRole,
-                        avatar: userDetails.avatar || undefined, 
-                        employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
-                        outletId: userDetails.outlet_id || userDetails.outletId || undefined,
-                        isApproved: true,
-                        referralCode: userDetails.referral_code || userDetails.referralCode || undefined
-                    } as User;
-                }
-          }
-      } catch (error) {
-          console.error('Supabase session check failed:', error);
-          // Continue to token check
-      }
-  }
-
   if (!token) return null;
 
-  // 1. Handle Supabase Custom Tokens (sb-token-)
-  if (token.startsWith('sb-token-') && import.meta.env.VITE_SUPABASE_URL) {
-      try {
-          const userId = token.replace('sb-token-', '');
-          const { data: userDetails } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', userId)
-              .single();
-          
-          if (userDetails) {
-              // CHECK APPROVAL STATUS
-              const isApproved = userDetails.is_approved ?? userDetails.isApproved;
-              if (isApproved === false) {
-                  localStorage.removeItem('auth_token');
-                  return null;
-              }
-
-              // Normalize role
-              let normalizedRole = Role.CASHIER;
-              const dbRole = userDetails.role ? userDetails.role.toLowerCase() : '';
-              
-              if (dbRole === 'admin') normalizedRole = Role.ADMIN;
-              else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
-              else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
-              else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
-              else if (dbRole === 'staff') normalizedRole = Role.STAFF;
-              else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
-              else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
-              else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
-              else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
-              else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
-
-              return {
-                  id: userDetails.id,
-                  name: userDetails.name,
-                  username: userDetails.username,
-                  role: normalizedRole,
-                  avatar: userDetails.avatar || undefined, 
-                  employeeId: userDetails.employee_id || userDetails.employeeId || undefined,
-                  outletId: userDetails.outlet_id || userDetails.outletId || undefined,
-                  isApproved: true,
-                  referralCode: userDetails.referral_code || userDetails.referralCode || undefined
-              } as User;
+  // Check Supabase Session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+      const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+      
+      if (profile) {
+          const isApproved = profile.is_approved ?? profile.isApproved;
+          if (isApproved === false) {
+              localStorage.removeItem('auth_token');
+              return null;
           }
-      } catch (error) {
-          console.error('Supabase custom token check failed:', error);
+
+          let normalizedRole = Role.CASHIER;
+          const dbRole = (profile.role || '').toLowerCase();
+          
+          if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+          else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+          else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+          else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+          else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+          else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+          else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+          else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+          else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+          else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+          return {
+              id: profile.id,
+              name: profile.name,
+              username: profile.username,
+              role: normalizedRole,
+              avatar: profile.avatar || undefined, 
+              employeeId: profile.employee_id || profile.employeeId || undefined,
+              outletId: profile.outlet_id || profile.outletId || undefined,
+              isApproved: true,
+              referralCode: profile.referral_code || profile.referralCode || undefined
+          } as User;
       }
   }
 
-  // 2. Fallback for mock tokens
+  // Handle Supabase Custom Tokens (sb-token-)
+  if (token.startsWith('sb-token-')) {
+      const userId = token.replace('sb-token-', '');
+      const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      if (profile) {
+          const isApproved = profile.is_approved ?? profile.isApproved;
+          if (isApproved === false) {
+              localStorage.removeItem('auth_token');
+              return null;
+          }
+
+          let normalizedRole = Role.CASHIER;
+          const dbRole = (profile.role || '').toLowerCase();
+          
+          if (dbRole === 'admin') normalizedRole = Role.ADMIN;
+          else if (dbRole === 'manager') normalizedRole = Role.MANAGER;
+          else if (dbRole === 'director') normalizedRole = Role.DIRECTOR;
+          else if (dbRole === 'cashier') normalizedRole = Role.CASHIER;
+          else if (dbRole === 'staff') normalizedRole = Role.STAFF;
+          else if (dbRole === 'sales' || dbRole === 'sales marketing' || dbRole === 'sales_marketing') normalizedRole = Role.SALES;
+          else if (dbRole === 'debt collector' || dbRole === 'debt_collector') normalizedRole = Role.DEBT_COLLECTOR;
+          else if (dbRole === 'rph_admin' || dbRole === 'admin rph' || dbRole === 'admin_rph') normalizedRole = Role.RPH_ADMIN;
+          else if (dbRole === 'pelanggan' || dbRole === 'customer') normalizedRole = Role.CUSTOMER;
+          else if (dbRole === 'public') normalizedRole = Role.PUBLIC;
+
+          return {
+              id: profile.id,
+              name: profile.name,
+              username: profile.username,
+              role: normalizedRole,
+              avatar: profile.avatar || undefined, 
+              employeeId: profile.employee_id || profile.employeeId || undefined,
+              outletId: profile.outlet_id || profile.outletId || undefined,
+              isApproved: true,
+              referralCode: profile.referral_code || profile.referralCode || undefined
+          } as User;
+      }
+  }
+
+  // Fallback for mock tokens
   if (token.startsWith('mock-token-')) {
       const userId = token.replace('mock-token-', '');
       const user = MOCK_USERS.find(u => u.id === userId);
@@ -227,9 +210,7 @@ export const verifySession = async (): Promise<User | null> => {
 };
 
 export const logoutUser = async () => {
-  if (import.meta.env.VITE_SUPABASE_URL) {
-      await supabase.auth.signOut();
-  }
+  await supabase.auth.signOut();
   localStorage.removeItem('auth_token');
   window.location.reload();
 };
@@ -237,197 +218,100 @@ export const logoutUser = async () => {
 // --- USER MANAGEMENT ---
 
 export const getUsers = async (): Promise<User[]> => {
-    // 1. Try Supabase
-    if (import.meta.env.VITE_SUPABASE_URL) {
-        try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('*');
-            
-            if (error) throw error;
-            
-            if (data) {
-                return data.map(u => ({
-                    id: u.id,
-                    name: u.name,
-                    username: u.username,
-                    role: u.role as Role,
-                    avatar: u.avatar,
-                    employeeId: u.employee_id,
-                    outletId: u.outlet_id,
-                    isApproved: u.is_approved,
-                    referralCode: u.referral_code,
-                    referrerId: u.referrer_id,
-                    totalEarnings: u.total_earnings || 0
-                }));
-            }
-        } catch (error) {
-            console.error('Supabase get users error:', error);
-        }
+    try {
+        const { data } = await supabase.from('users').select('*');
+        return (data || []).map(u => ({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            role: u.role as Role,
+            avatar: u.avatar,
+            employeeId: u.employee_id || u.employeeId,
+            outletId: u.outlet_id || u.outletId,
+            isApproved: u.is_approved || u.isApproved,
+            referralCode: u.referral_code || u.referralCode,
+            referrerId: u.referrer_id || u.referrerId,
+            totalEarnings: u.total_earnings || u.totalEarnings || 0
+        }));
+    } catch (error) {
+        console.error('Supabase get users error:', error);
+        return MOCK_USERS;
     }
-
-    // 2. Fallback to Mock
-    return MOCK_USERS;
 };
 
 export const createUser = async (user: Partial<User> & { password: string; referrerCode?: string }): Promise<User | null> => {
-    // 1. Try Supabase
-    if (import.meta.env.VITE_SUPABASE_URL) {
-        try {
-            // Find referrer ID if code provided
-            let referrerId: string | undefined;
-            if (user.referrerCode) {
-                const { data: referrerData } = await supabase
-                    .from('users')
-                    .select('id')
-                    .eq('referral_code', user.referrerCode)
-                    .single();
-                if (referrerData) referrerId = referrerData.id;
+    try {
+        let authId = `user-${Date.now()}`;
+        
+        // 1. If username is email, try Supabase Auth
+        if (user.username && user.username.includes('@')) {
+            const { data } = await supabase.auth.signUp({
+                email: user.username,
+                password: user.password
+            });
+            if (data?.user) {
+                authId = data.user.id;
             }
-
-            // If username is email, try Supabase Auth
-            let authId = `user-${Date.now()}`;
-            if (user.username && user.username.includes('@')) {
-                const { data, error } = await supabase.auth.signUp({
-                    email: user.username,
-                    password: user.password,
-                    options: {
-                        data: {
-                            name: user.name,
-                            role: user.role
-                        }
-                    }
-                });
-                if (error) throw error;
-                if (data.user) authId = data.user.id;
-            }
-
-            // Insert into 'users' table
-            const { data, error } = await supabase
-                .from('users')
-                .insert({
-                    id: authId,
-                    name: user.name,
-                    username: user.username,
-                    role: user.role,
-                    password: user.password, // Ideally hashed, but storing plain for now as per existing pattern
-                    is_approved: user.isApproved || false,
-                    avatar: user.avatar,
-                    employee_id: user.employeeId,
-                    outlet_id: user.outletId,
-                    referrer_id: referrerId
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                return {
-                    id: data.id,
-                    name: data.name,
-                    username: data.username,
-                    role: data.role as Role,
-                    avatar: data.avatar,
-                    employeeId: data.employee_id,
-                    outletId: data.outlet_id,
-                    isApproved: data.is_approved,
-                    referrerId: data.referrer_id
-                };
-            }
-        } catch (err) {
-            console.error('Supabase create user error:', err);
         }
-    }
 
-    // 2. Mock Fallback (Simulate success for demo)
-    console.warn('Using mock fallback for user creation');
-    return {
-        id: `mock-${Date.now()}`,
-        name: user.name || 'New User',
-        username: user.username || 'user',
-        role: user.role || Role.CASHIER,
-        isApproved: user.isApproved
-    } as User;
+        const userPayload = {
+            id: authId,
+            name: user.name,
+            username: user.username,
+            role: user.role,
+            password: user.password,
+            is_approved: user.isApproved || false,
+            avatar: user.avatar || '',
+            employee_id: user.employeeId || '',
+            outlet_id: user.outletId || '',
+            created_at: new Date().toISOString()
+        };
+
+        const { error: insertError } = await supabase.from('users').insert(userPayload);
+        if (insertError) throw insertError;
+
+        return {
+            id: authId,
+            ...userPayload,
+            role: user.role as Role,
+            isApproved: user.isApproved || false
+        } as User;
+    } catch (err) {
+        console.error('Supabase create user error:', err);
+        return null;
+    }
 };
 
 export const updateUser = async (id: string, user: Partial<User> & { password?: string }): Promise<User | null> => {
-    // 1. Try Supabase
-    if (import.meta.env.VITE_SUPABASE_URL) {
-        try {
-            // A. Update 'users' table (Custom Data)
-            const updates: Record<string, unknown> = {};
-            if (user.name) updates.name = user.name;
-            if (user.username) updates.username = user.username;
-            if (user.role) updates.role = user.role;
-            if (user.avatar) updates.avatar = user.avatar;
-            if (user.employeeId) updates.employee_id = user.employeeId;
-            if (user.outletId) updates.outlet_id = user.outletId;
-            
-            // If password is provided, update it in 'users' table (for custom auth users)
-            // Note: In a real app, this should be hashed.
-            if (user.password) updates.password = user.password;
+    try {
+        const updates: Record<string, unknown> = { ...user as Record<string, unknown> };
+        
+        if (updates.employeeId) updates.employee_id = updates.employeeId;
+        if (updates.outletId) updates.outlet_id = updates.outletId;
+        if (updates.isApproved !== undefined) updates.is_approved = updates.isApproved;
 
-            const { data, error } = await supabase
-                .from('users')
-                .update(updates)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            // B. If updating SELF and Password is provided, try updating Supabase Auth
-            // This only works if the user is logged in as themselves via Supabase Auth
-            if (user.password) {
-                const { data: sessionData } = await supabase.auth.getSession();
-                if (sessionData.session?.user.id === id) {
-                    await supabase.auth.updateUser({ password: user.password });
-                }
-            }
-
-            if (data) {
-                 return {
-                    id: data.id,
-                    name: data.name,
-                    username: data.username,
-                    role: data.role as Role,
-                    avatar: data.avatar,
-                    employeeId: data.employee_id,
-                    outletId: data.outlet_id
-                };
-            }
-        } catch (err) {
-            console.error('Supabase update user error:', err);
-        }
+        const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        
+        if (error) throw error;
+        return data as User;
+    } catch (err) {
+        console.error('Supabase update user error:', err);
     }
-
-    // 2. Mock Fallback (for testing)
-    const mockUserIndex = MOCK_USERS.findIndex(u => u.id === id);
-    if (mockUserIndex >= 0) {
-        const updatedUser = { ...MOCK_USERS[mockUserIndex], ...user };
-        return updatedUser as User;
-    }
-
     return null;
 };
 
 export const deleteUser = async (id: string): Promise<boolean> => {
-    // 1. Try Supabase
-    if (import.meta.env.VITE_SUPABASE_URL) {
-        try {
-            const { error } = await supabase
-                .from('users')
-                .delete()
-                .eq('id', id);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Supabase delete user error:', error);
-        }
+    try {
+        const { error } = await supabase.from('users').delete().eq('id', id);
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Supabase delete user error:', error);
+        return false;
     }
-
-    // 2. Mock Fallback
-    console.warn('Using mock fallback for user deletion');
-    return true; // Simulate success
 };

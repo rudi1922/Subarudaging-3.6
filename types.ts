@@ -485,6 +485,25 @@ export interface PrivateTransaction {
   userId: string; // Only for Director/Admin
 }
 
+export enum StockAdjustmentType {
+  DAMAGED = 'Keluaran / Rusak',
+  RETURN = 'Retur / Kembali',
+  ADJUSTMENT = 'Penyesuaian Manual'
+}
+
+export interface StockAdjustment {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  type: StockAdjustmentType;
+  reason: string;
+  date: string;
+  outletId: string;
+  userId: string;
+  userName: string;
+}
+
 export interface ReceiptData {
     title?: string;
     subtitle?: string;

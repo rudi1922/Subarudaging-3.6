@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, ArrowRightLeft, X as XIcon, Trash2, Beef, Package, Truck, Scale, Printer, Download } from 'lucide-react';
-import { Product, ProductCategory, CattleOrder, PrinterConnection, User as UserType, Role, GalleryItem } from '../types';
+import { Product, ProductCategory, CattleOrder, PrinterConnection, User as UserType, Role, GalleryItem, StockAdjustmentType, StockAdjustment } from '../types';
 import { useStore } from '../StoreContext';
 import { createPortal } from 'react-dom';
 import { PrinterService } from '../utils/printer';
@@ -138,6 +138,9 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCattleModalOpen, setIsCattleModalOpen] = useState(false);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
+  const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
+  const [adjustmentType, setAdjustmentType] = useState<StockAdjustmentType>(StockAdjustmentType.DAMAGED);
+  const [adjustmentData, setAdjustmentData] = useState({ productId: '', quantity: 0, reason: '' });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingGallery, setEditingGallery] = useState<GalleryItem | null>(null);
   const [formData, setFormData] = useState<Partial<Product>>({ name: '', category: ProductCategory.PREMIUM, price: 0, stock: 0, minStock: 5, unit: 'kg', description: '', image: '' });
@@ -181,7 +184,53 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   const avgYield = activeOrdersCount > 0 ? (weightedYield / activeOrdersCount) * 100 : 0;
   const avgShrinkage = 100 - avgYield;
 
-  const handleOpenAdd = () => { setEditingProduct(null); setFormData({ name: '', category: ProductCategory.PREMIUM, price: 0, stock: 0, minStock: 5, unit: 'kg', description: '', image: '' }); setIsProductModalOpen(true); };
+  const { addStockAdjustment } = useStore();
+
+  const handleOpenAdjustment = (type: StockAdjustmentType) => {
+    setAdjustmentType(type);
+    setAdjustmentData({ productId: '', quantity: 0, reason: '' });
+    setIsAdjustmentModalOpen(true);
+  };
+
+  const handleSaveAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustmentData.productId || adjustmentData.quantity <= 0) return;
+
+    const product = products.find(p => p.id === adjustmentData.productId);
+    if (!product) return;
+
+    const newAdjustment: StockAdjustment = {
+        id: `adj-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
+        quantity: Number(adjustmentData.quantity),
+        type: adjustmentType,
+        reason: adjustmentData.reason,
+        date: new Date().toISOString(),
+        outletId: user?.outletId || 'o1',
+        userId: user?.id || 'u1',
+        userName: user?.name || 'System'
+    };
+
+    await addStockAdjustment(newAdjustment);
+    setIsAdjustmentModalOpen(false);
+  };
+
+  const handleOpenAdd = useCallback(() => { 
+    setEditingProduct(null); 
+    setFormData({ 
+      name: '', 
+      category: ProductCategory.MEAT, 
+      price: 0, 
+      stock: 0, 
+      minStock: 5, 
+      unit: 'kg', 
+      description: '', 
+      image: '', 
+      outletId: user?.outletId || 'o1' 
+    }); 
+    setIsProductModalOpen(true); 
+  }, [user?.outletId]);
   const handleOpenEdit = (product: Product) => { setEditingProduct(product); setFormData({ ...product }); setIsProductModalOpen(true); };
   const handleDelete = (id: string) => { 
     confirm({
@@ -201,20 +250,30 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
     });
   };
 
+  useEffect(() => {
+    if (activeTab === 'products' && products.length === 0) {
+      const timer = setTimeout(() => handleOpenAdd(), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, products.length, handleOpenAdd]);
+
   // Handle Navigation Params from Dashboard
-  React.useEffect(() => {
+  useEffect(() => {
       if (navigationParams) {
           if (navigationParams.tab === 'master_data' && navigationParams.action === 'add_product') {
-              setActiveTab('products');
-              // Small delay to ensure state is ready
-              setTimeout(() => handleOpenAdd(), 100);
+              setTimeout(() => {
+                setActiveTab('products');
+                handleOpenAdd();
+              }, 0);
           } else if (navigationParams.tab === 'stock_opname') {
-              setActiveTab('products');
-              setTimeout(() => setIsTransferModalOpen(true), 100);
+              setTimeout(() => {
+                setActiveTab('products');
+                setIsTransferModalOpen(true);
+              }, 0);
           }
           setNavigationParams(null);
       }
-  }, [navigationParams, setNavigationParams]);
+  }, [navigationParams, setNavigationParams, handleOpenAdd]);
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,6 +479,15 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
   };
   const effectiveSearch = searchQuery || localSearch;
   const filtered = products.filter(p => {
+    // 1. Outlet Filter (From UI or User Profile)
+    if (user?.role !== Role.ADMIN && user?.role !== Role.MANAGER && user?.role !== Role.DIRECTOR) {
+        // Restricted to own outlet
+        if (p.outletId !== user?.outletId) return false;
+    } else if (selectedOutlet !== 'Semua') {
+        const targetOutlet = outlets.find(o => o.name === selectedOutlet);
+        if (targetOutlet && p.outletId !== targetOutlet.id) return false;
+    }
+
     return (p.name.toLowerCase().includes(effectiveSearch.toLowerCase()) || p.batchNumber?.toLowerCase().includes(effectiveSearch.toLowerCase())) &&
            (categoryFilter === 'Semua' || p.category === categoryFilter) &&
            (statusFilter === 'Semua' || (statusFilter === 'Habis' && p.stock === 0) || (statusFilter === 'Rendah' && p.stock > 0 && p.stock < p.minStock) || (statusFilter === 'Aman' && p.stock >= p.minStock));
@@ -439,6 +507,8 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           {activeTab === 'products' ? (
              <>
+               <button onClick={() => handleOpenAdjustment(StockAdjustmentType.DAMAGED)} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-orange-600/20 text-orange-400 border border-orange-600/30 rounded-lg text-sm flex justify-center hover:bg-orange-600/30 transition-colors">Daging Rusak</button>
+               <button onClick={() => handleOpenAdjustment(StockAdjustmentType.RETURN)} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-lg text-sm flex justify-center hover:bg-blue-600/30 transition-colors">Retur Daging</button>
                <button onClick={handleExportPDF} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-white/10 text-white rounded-lg text-sm flex justify-center border border-white/10 hover:bg-white/20 transition-colors"><Download size={16} /> Export PDF</button>
                <button onClick={handlePrintStock} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-white text-black font-bold rounded-lg text-sm flex justify-center"><Printer size={16} /> Laporan</button>
                <button onClick={() => setIsTransferModalOpen(true)} className="flex-1 lg:flex-none items-center gap-2 px-3 py-2 bg-[#2a2a2a] text-white rounded-lg border border-white/10 text-sm flex justify-center"><ArrowRightLeft size={16} /> Transfer</button>
@@ -497,7 +567,7 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
                         <tr key={product.id} className="hover:bg-white/5 transition-colors group">
                         <td className="px-6 py-4"><p className="text-white font-medium">{product.name}</p><p className="text-xs">{product.unit}</p></td>
                         <td className="px-6 py-4"><span className="bg-gray-800 px-2 py-1 rounded text-xs">{product.category}</span></td>
-                        <td className="px-6 py-4 text-xs">{selectedOutlet === 'Semua' ? 'Gudang Utama' : selectedOutlet}</td>
+                        <td className="px-6 py-4 text-xs">{outlets.find(o => o.id === product.outletId)?.name || 'Gudang Utama'}</td>
                         <td className="px-6 py-4 text-right font-mono text-white">{product.price.toLocaleString('id-ID')}</td>
                         {canViewCost && <td className="px-6 py-4 text-right font-mono text-gray-400">{product.costPrice ? product.costPrice.toLocaleString('id-ID') : '-'}</td>}
                         <td className="px-6 py-4 text-center"><span className={`font-bold ${product.stock < product.minStock ? 'text-brand-red' : 'text-white'}`}>{product.stock}</span></td>
@@ -660,7 +730,10 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
                   <input type="text" placeholder="https://..." value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white" />
               </div>
               <textarea placeholder="Deskripsi Produk" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white h-20 resize-none" />
-              <button type="submit" className="w-full py-3 bg-brand-red text-white font-bold rounded-lg shadow-lg shadow-brand-red/20">Simpan Produk</button>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 bg-[#333] text-white font-bold rounded-lg hover:bg-[#444] transition-colors flex items-center justify-center gap-2">Batal / Kembali</button>
+                <button type="submit" className="flex-[2] py-3 bg-brand-red text-white font-bold rounded-lg shadow-lg shadow-brand-red/20">Simpan Produk</button>
+              </div>
             </form>
           </div>
         </div>
@@ -736,9 +809,12 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
                 </div>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-brand-gold hover:bg-yellow-600 text-black font-bold rounded-lg mt-4">
-                {editingCattle ? 'Simpan Perubahan' : 'Buat Purchase Order'}
-              </button>
+              <div className="flex gap-3 mt-4">
+                <button type="button" onClick={() => setIsCattleModalOpen(false)} className="flex-1 py-3 bg-[#333] text-white font-bold rounded-lg hover:bg-[#444] transition-colors">Batal / Kembali</button>
+                <button type="submit" className="flex-[2] py-3 bg-brand-gold hover:bg-yellow-600 text-black font-bold rounded-lg">
+                  {editingCattle ? 'Simpan Perubahan' : 'Buat Purchase Order'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -775,9 +851,12 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
                 <label className="block text-[10px] text-gray-500 uppercase mb-1">Konten Lengkap</label>
                 <textarea placeholder="Cerita atau detail lengkap..." value={galleryFormData.content} onChange={e => setGalleryFormData({...galleryFormData, content: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white h-32 resize-none" />
               </div>
-              <button type="submit" className="w-full py-3 bg-brand-red text-white font-bold rounded-lg shadow-lg shadow-brand-red/20">
-                {editingGallery ? 'Simpan Perubahan' : 'Tambah ke Katalog'}
-              </button>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setIsGalleryModalOpen(false)} className="flex-1 py-3 bg-[#333] text-white font-bold rounded-lg hover:bg-[#444] transition-colors">Batal / Kembali</button>
+                <button type="submit" className="flex-[2] py-3 bg-brand-red text-white font-bold rounded-lg shadow-lg shadow-brand-red/20">
+                  {editingGallery ? 'Simpan Perubahan' : 'Tambah ke Katalog'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -824,9 +903,70 @@ const Inventory: React.FC<InventoryProps> = ({ user }) => {
               </div>
 
               <div className="pt-4 flex gap-3">
-                 <button type="submit" className="w-full py-3 bg-brand-gold hover:bg-yellow-600 text-black font-bold rounded-lg flex items-center justify-center gap-2">
-                   Konfirmasi Transfer
-                 </button>
+                <button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 py-3 bg-[#333] text-white font-bold rounded-lg hover:bg-[#444] transition-colors">Batal / Kembali</button>
+                <button type="submit" className="flex-[2] py-3 bg-brand-gold hover:bg-yellow-600 text-black font-bold rounded-lg flex items-center justify-center gap-2">
+                  Konfirmasi Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- STOCK ADJUSTMENT MODAL (Damaged/Return) --- */}
+      {isAdjustmentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1e1e1e] w-full max-w-md rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#252525]">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                {adjustmentType === StockAdjustmentType.DAMAGED ? <Trash2 className="text-orange-500" size={20} /> : <ArrowRightLeft className="text-blue-500" size={20} />}
+                {adjustmentType === StockAdjustmentType.DAMAGED ? 'Input Daging Rusak' : 'Input Retur Daging'}
+              </h3>
+              <button onClick={() => setIsAdjustmentModalOpen(false)} className="text-gray-400 hover:text-white"><XIcon size={24} /></button>
+            </div>
+            <form onSubmit={handleSaveAdjustment} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Pilih Produk</label>
+                <select 
+                  required 
+                  value={adjustmentData.productId} 
+                  onChange={e => setAdjustmentData({...adjustmentData, productId: e.target.value})}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white"
+                >
+                  <option value="">-- Pilih Produk --</option>
+                  {filtered.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock} {p.unit})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Jumlah</label>
+                <input 
+                  type="number" 
+                  required 
+                  min="0.01" 
+                  step="0.01"
+                  value={adjustmentData.quantity} 
+                  onChange={e => setAdjustmentData({...adjustmentData, quantity: parseFloat(e.target.value)})}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Alasan / Keterangan</label>
+                <textarea 
+                  required
+                  placeholder="Contoh: Plastik bocor, Daging berubah warna, Retur dari Resto A..."
+                  value={adjustmentData.reason} 
+                  onChange={e => setAdjustmentData({...adjustmentData, reason: e.target.value})}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white h-24 resize-none"
+                />
+              </div>
+              
+              <div className="flex gap-3 mt-4">
+                <button type="button" onClick={() => setIsAdjustmentModalOpen(false)} className="flex-1 py-3 bg-[#333] text-white font-bold rounded-lg hover:bg-[#444] transition-colors">Batal / Kembali</button>
+                <button type="submit" className={`flex-[2] py-3 text-white font-bold rounded-lg shadow-lg ${adjustmentType === StockAdjustmentType.DAMAGED ? 'bg-orange-600 shadow-orange-600/20' : 'bg-blue-600 shadow-blue-600/20'}`}>Konfirmasi</button>
               </div>
             </form>
           </div>
